@@ -64,6 +64,42 @@ export default function TodaysActivities() {
           </div>
         ))}
       </div>
+
+      {/* Decorative wave with colour fill to bottom */}
+      <div className="mt-auto mx-[-20px] mb-[-20px] flex-1 flex flex-col min-h-[60px]">
+        {/* Wave SVG — transparent above, filled below */}
+        <svg
+          className="w-full block"
+          viewBox="0 0 200 36"
+          preserveAspectRatio="none"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {/* Only fill below the wave curve */}
+          <path
+            d="M0 20 C25 8, 50 8, 75 20 S125 32, 150 20 S175 8, 200 20 L200 36 L0 36 Z"
+            fill="rgba(0,126,167,0.10)"
+          />
+          {/* Wave line */}
+          <path
+            d="M0 20 C25 8, 50 8, 75 20 S125 32, 150 20 S175 8, 200 20"
+            stroke="#007ea7"
+            strokeWidth="1"
+            strokeLinecap="round"
+            opacity="0.18"
+          />
+          {/* Second subtle wave */}
+          <path
+            d="M0 27 C30 17, 55 17, 80 27 S130 37, 155 27 S180 17, 200 27"
+            stroke="#007ea7"
+            strokeWidth="0.75"
+            strokeLinecap="round"
+            opacity="0.10"
+          />
+        </svg>
+        {/* Solid fill stretches to bottom */}
+        <div className="flex-1" style={{ background: "rgba(0,126,167,0.10)" }} />
+      </div>
     </ComponentCard>
   );
 }
