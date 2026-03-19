@@ -43,10 +43,10 @@ export default function Home() {
         <div className="col-span-2 flex flex-col gap-5">
           {/* Row A: Finance + Calorie/Activities */}
           <div className="grid grid-cols-2 gap-5">
-            <MonthlyFinance />
+            <TodaysActivities />
             <div className="flex flex-col gap-5">
               <CalorieTracker />
-              <TodaysActivities />
+              <MonthlyFinance />
             </div>
           </div>
 
