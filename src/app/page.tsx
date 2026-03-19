@@ -8,24 +8,11 @@ import Fitness from "@/components/Fitness";
 import WorkDigest from "@/components/WorkDigest";
 import BlokMetrics from "@/components/BlokMetrics";
 import Scribblebox from "@/components/Scribblebox";
+import SkyBanner from "@/components/SkyBanner";
 
 export default function Home() {
   return (
-    <div className="min-h-screen p-6 lg:p-8">
-      {/* Header */}
-      <header className="mb-8 flex items-baseline justify-between">
-        <h1 className="text-lg font-semibold tracking-tight text-forest">
-          Aperture
-        </h1>
-        <span className="text-xs text-black/30">
-          {new Date().toLocaleDateString("en-GB", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-          })}
-        </span>
-      </header>
-
+    <SkyBanner>
       {/* Dashboard Grid */}
       <div className="grid grid-cols-[1fr_1.5fr_1.25fr_1.25fr] gap-5 items-start">
         {/* Column 1 */}
@@ -60,6 +47,6 @@ export default function Home() {
       </div>
 
       <Scribblebox />
-    </div>
+    </SkyBanner>
   );
 }
