@@ -7,6 +7,7 @@ import WavesDigest from "@/components/WavesDigest";
 import Fitness from "@/components/Fitness";
 import WorkDigest from "@/components/WorkDigest";
 import BlokMetrics from "@/components/BlokMetrics";
+import Scribblebox from "@/components/Scribblebox";
 
 export default function Home() {
   return (
@@ -57,6 +58,8 @@ export default function Home() {
           <BlokMetrics />
         </div>
       </div>
+
+      <Scribblebox />
     </div>
   );
 }
