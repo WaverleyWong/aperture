@@ -7,6 +7,7 @@ interface CalendarEvent {
   time: string;
   label: string;
   isAllDay: boolean;
+  source: "work" | "personal";
 }
 
 export default function TodaysActivities() {
@@ -49,7 +50,13 @@ export default function TodaysActivities() {
           <p className="text-xs text-black/40 italic">Nothing scheduled today</p>
         )}
         {events.map((evt, i) => (
-          <div key={i} className="flex items-baseline gap-2.5">
+          <div key={i} className="flex items-center gap-2.5">
+            <span
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{
+                backgroundColor: evt.source === "work" ? "#007ea7" : "#0e402d",
+              }}
+            />
             <span className="text-xs tabular-nums text-black/40 w-10 flex-shrink-0">
               {evt.time}
             </span>
