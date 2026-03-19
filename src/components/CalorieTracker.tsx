@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import ComponentCard from "./ComponentCard";
 
 const SHEET_CSV_URL =
@@ -35,42 +35,47 @@ export default function CalorieTracker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(SHEET_CSV_URL);
-        const text = await res.text();
-        const rows = text.split("\n").map((r) => r.split(","));
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(SHEET_CSV_URL);
+      const text = await res.text();
+      const rows = text.split("\n").map((r) => r.split(","));
 
-        const key = todayKey();
+      const key = todayKey();
+      let found = false;
 
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row[0]) continue;
-          const rowKey = parseDateCell(row[0]);
-          if (rowKey === key) {
-            const targetVal = parseFloat(row[2]);
-            const countVal = parseFloat(row[3]);
-            setTarget(isNaN(targetVal) ? null : targetVal);
-            setEaten(isNaN(countVal) ? null : countVal);
-            break;
-          }
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row[0]) continue;
+        const rowKey = parseDateCell(row[0]);
+        if (rowKey === key) {
+          const targetVal = parseFloat(row[2]);
+          const countVal = parseFloat(row[3]);
+          setTarget(isNaN(targetVal) ? null : targetVal);
+          setEaten(isNaN(countVal) ? null : countVal);
+          found = true;
+          break;
         }
-      } catch {
-        setError("Failed to load data");
-      } finally {
-        setLoading(false);
       }
-    })();
+      if (!found) {
+        setEaten(null);
+        setTarget(null);
+      }
+    } catch {
+      setError("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const pct =
-    eaten != null && target != null
-      ? Math.min(Math.round((eaten / target) * 100), 100)
-      : 0;
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   return (
-    <ComponentCard title="Calories">
+    <ComponentCard title="Calories" onRefresh={fetchData}>
       {loading ? (
         <p className="text-sm text-black/40">Loading…</p>
       ) : error ? (

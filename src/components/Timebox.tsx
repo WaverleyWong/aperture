@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent } from "react";
+import { useState, useRef, useCallback, KeyboardEvent } from "react";
 import Image from "next/image";
 
 interface TimeboxItem {
@@ -12,9 +12,17 @@ interface TimeboxItem {
 export default function Timebox() {
   const [items, setItems] = useState<TimeboxItem[]>([]);
   const [newText, setNewText] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
+
+  const handleTitleClick = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    await new Promise((r) => setTimeout(r, 600));
+    setRefreshing(false);
+  }, [refreshing]);
 
   const addItem = () => {
     const trimmed = newText.trim();
@@ -68,10 +76,37 @@ export default function Timebox() {
 
   return (
     <div className="rounded-2xl border border-forest/20 bg-white/60 backdrop-blur-sm p-5 flex flex-col">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-forest mb-4">
-        Timebox
-      </h2>
+      <button
+        type="button"
+        onClick={handleTitleClick}
+        className="flex items-center gap-2 mb-4 text-left cursor-pointer group"
+      >
+        <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-forest group-hover:text-forest/70 transition-colors">
+          Timebox
+        </h2>
+        <span
+          className={`transition-opacity duration-200 ${refreshing ? "opacity-100" : "opacity-0"}`}
+        >
+          <svg
+            className="w-3 h-3 animate-spin text-forest/40"
+            viewBox="0 0 16 16"
+            fill="none"
+          >
+            <circle
+              cx="8"
+              cy="8"
+              r="6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeDasharray="28"
+              strokeDashoffset="8"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
+      </button>
 
+      <div className={`flex-1 flex flex-col transition-opacity duration-300 ${refreshing ? "opacity-30" : "opacity-100"}`}>
       {/* Items list */}
       <div className="flex flex-col gap-1 mb-3">
         {items.map((item, index) => (
@@ -173,6 +208,7 @@ export default function Timebox() {
           />
         </div>
       )}
+      </div>
     </div>
   );
 }

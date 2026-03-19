@@ -38,7 +38,7 @@ export default function TodaysActivities() {
   }, [fetchEvents]);
 
   return (
-    <ComponentCard title="Today's Activities">
+    <ComponentCard title="Today's Activities" onRefresh={fetchEvents}>
       <div className="flex flex-col gap-2">
         {loading && (
           <p className="text-xs text-black/40 italic">Loading…</p>
