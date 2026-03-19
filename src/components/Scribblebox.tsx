@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const STORAGE_KEY = "aperture-scribblebox";
+const MIN_W = 240;
+const MIN_H = 180;
 
 const placeholders = [
   "What're you thinking?",
@@ -22,17 +24,30 @@ function dailyPlaceholder(): string {
   return placeholders[dayIndex];
 }
 
+type InteractionMode =
+  | null
+  | "drag"
+  | "resize-n"
+  | "resize-s"
+  | "resize-e"
+  | "resize-w"
+  | "resize-ne"
+  | "resize-nw"
+  | "resize-se"
+  | "resize-sw";
+
 export default function Scribblebox() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [loaded, setLoaded] = useState(false);
 
-  // Drag state
   const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [size, setSize] = useState({ w: 320, h: 260 });
   const [posInitialised, setPosInitialised] = useState(false);
-  const dragging = useRef(false);
-  const dragOffset = useRef({ x: 0, y: 0 });
-  const popupRef = useRef<HTMLDivElement>(null);
+
+  const mode = useRef<InteractionMode>(null);
+  const startMouse = useRef({ x: 0, y: 0 });
+  const startRect = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
   // Load persisted text on mount
   useEffect(() => {
@@ -41,16 +56,16 @@ export default function Scribblebox() {
     setLoaded(true);
   }, []);
 
-  // Set initial position once open and we know window size
+  // Set initial position once open
   useEffect(() => {
     if (open && !posInitialised) {
       setPos({
-        x: window.innerWidth - 380,
-        y: window.innerHeight - 340,
+        x: window.innerWidth - size.w - 60,
+        y: window.innerHeight - size.h - 80,
       });
       setPosInitialised(true);
     }
-  }, [open, posInitialised]);
+  }, [open, posInitialised, size.w, size.h]);
 
   // Persist text on change
   useEffect(() => {
@@ -64,30 +79,74 @@ export default function Scribblebox() {
     localStorage.removeItem(STORAGE_KEY);
   };
 
-  // Drag handlers
-  const onMouseDown = useCallback(
+  // Start drag
+  const onDragStart = useCallback(
     (e: React.MouseEvent) => {
-      dragging.current = true;
-      dragOffset.current = {
-        x: e.clientX - pos.x,
-        y: e.clientY - pos.y,
-      };
+      mode.current = "drag";
+      startMouse.current = { x: e.clientX, y: e.clientY };
+      startRect.current = { x: pos.x, y: pos.y, w: size.w, h: size.h };
       e.preventDefault();
     },
-    [pos]
+    [pos, size]
   );
 
+  // Start resize
+  const onResizeStart = useCallback(
+    (edge: InteractionMode) => (e: React.MouseEvent) => {
+      mode.current = edge;
+      startMouse.current = { x: e.clientX, y: e.clientY };
+      startRect.current = { x: pos.x, y: pos.y, w: size.w, h: size.h };
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [pos, size]
+  );
+
+  // Unified mousemove / mouseup
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      if (!dragging.current) return;
-      setPos({
-        x: e.clientX - dragOffset.current.x,
-        y: e.clientY - dragOffset.current.y,
-      });
+      if (!mode.current) return;
+      const dx = e.clientX - startMouse.current.x;
+      const dy = e.clientY - startMouse.current.y;
+      const r = startRect.current;
+
+      if (mode.current === "drag") {
+        setPos({ x: r.x + dx, y: r.y + dy });
+        return;
+      }
+
+      let newX = r.x;
+      let newY = r.y;
+      let newW = r.w;
+      let newH = r.h;
+
+      const m = mode.current;
+
+      if (m.includes("e")) newW = Math.max(MIN_W, r.w + dx);
+      if (m.includes("s")) newH = Math.max(MIN_H, r.h + dy);
+      if (m.includes("w")) {
+        const proposedW = r.w - dx;
+        if (proposedW >= MIN_W) {
+          newW = proposedW;
+          newX = r.x + dx;
+        }
+      }
+      if (m.includes("n")) {
+        const proposedH = r.h - dy;
+        if (proposedH >= MIN_H) {
+          newH = proposedH;
+          newY = r.y + dy;
+        }
+      }
+
+      setPos({ x: newX, y: newY });
+      setSize({ w: newW, h: newH });
     };
+
     const onMouseUp = () => {
-      dragging.current = false;
+      mode.current = null;
     };
+
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     return () => {
@@ -95,6 +154,9 @@ export default function Scribblebox() {
       window.removeEventListener("mouseup", onMouseUp);
     };
   }, []);
+
+  const edge = "absolute bg-transparent z-10";
+  const GRIP = 6;
 
   return (
     <>
@@ -122,13 +184,24 @@ export default function Scribblebox() {
       {/* Popup */}
       {open && (
         <div
-          ref={popupRef}
-          style={{ left: pos.x, top: pos.y }}
-          className="fixed z-50 w-[320px] rounded-2xl border border-forest/20 bg-white/95 backdrop-blur-md shadow-xl flex flex-col overflow-hidden"
+          style={{ left: pos.x, top: pos.y, width: size.w, height: size.h }}
+          className="fixed z-50 rounded-2xl border border-forest/20 bg-white/95 backdrop-blur-md shadow-xl flex flex-col overflow-hidden"
         >
+          {/* Resize handles — edges */}
+          <div onMouseDown={onResizeStart("resize-n")} className={`${edge} top-0 left-[${GRIP}px] right-[${GRIP}px] h-[${GRIP}px] cursor-n-resize`} style={{ top: 0, left: GRIP, right: GRIP, height: GRIP, cursor: "n-resize" }} />
+          <div onMouseDown={onResizeStart("resize-s")} className={edge} style={{ bottom: 0, left: GRIP, right: GRIP, height: GRIP, cursor: "s-resize" }} />
+          <div onMouseDown={onResizeStart("resize-w")} className={edge} style={{ left: 0, top: GRIP, bottom: GRIP, width: GRIP, cursor: "w-resize" }} />
+          <div onMouseDown={onResizeStart("resize-e")} className={edge} style={{ right: 0, top: GRIP, bottom: GRIP, width: GRIP, cursor: "e-resize" }} />
+
+          {/* Resize handles — corners */}
+          <div onMouseDown={onResizeStart("resize-nw")} className={edge} style={{ top: 0, left: 0, width: GRIP * 2, height: GRIP * 2, cursor: "nw-resize" }} />
+          <div onMouseDown={onResizeStart("resize-ne")} className={edge} style={{ top: 0, right: 0, width: GRIP * 2, height: GRIP * 2, cursor: "ne-resize" }} />
+          <div onMouseDown={onResizeStart("resize-sw")} className={edge} style={{ bottom: 0, left: 0, width: GRIP * 2, height: GRIP * 2, cursor: "sw-resize" }} />
+          <div onMouseDown={onResizeStart("resize-se")} className={edge} style={{ bottom: 0, right: 0, width: GRIP * 2, height: GRIP * 2, cursor: "se-resize" }} />
+
           {/* Drag handle / header */}
           <div
-            onMouseDown={onMouseDown}
+            onMouseDown={onDragStart}
             className="flex items-center justify-between px-4 py-3 cursor-grab active:cursor-grabbing select-none border-b border-forest/10"
           >
             <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-forest">
@@ -158,7 +231,7 @@ export default function Scribblebox() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={dailyPlaceholder()}
-            className="flex-1 min-h-[180px] px-4 py-3 text-sm text-black bg-transparent resize-none focus:outline-none placeholder:text-black/25 placeholder:italic"
+            className="flex-1 px-4 py-3 text-sm text-black bg-transparent resize-none focus:outline-none placeholder:text-black/25 placeholder:italic"
           />
         </div>
       )}

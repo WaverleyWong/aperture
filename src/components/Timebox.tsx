@@ -75,7 +75,7 @@ export default function Timebox() {
   const hasItems = items.length > 0;
 
   return (
-    <div className="rounded-2xl border border-forest/20 bg-white/60 backdrop-blur-sm p-5 flex flex-col">
+    <div className="rounded-3xl border border-forest/20 bg-white/60 backdrop-blur-sm p-5 flex flex-col shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)]">
       <button
         type="button"
         onClick={handleTitleClick}
