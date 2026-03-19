@@ -1,16 +1,54 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
 import ComponentCard from "./ComponentCard";
 
-const placeholderEvents = [
-  { time: "12:30", label: "Lunch with Jess", type: "personal" },
-  { time: "14:00", label: "Team standup", type: "work" },
-  { time: "17:00", label: "Yoga class", type: "personal" },
-];
+interface CalendarEvent {
+  time: string;
+  label: string;
+  isAllDay: boolean;
+}
 
 export default function TodaysActivities() {
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/calendar");
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setEvents(data.events);
+      }
+    } catch {
+      setError("Failed to fetch calendar");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
   return (
     <ComponentCard title="Today's Activities">
       <div className="flex flex-col gap-2">
-        {placeholderEvents.map((evt, i) => (
+        {loading && (
+          <p className="text-xs text-black/40 italic">Loading…</p>
+        )}
+        {error && (
+          <p className="text-xs text-red-500 italic">{error}</p>
+        )}
+        {!loading && !error && events.length === 0 && (
+          <p className="text-xs text-black/40 italic">Nothing scheduled today</p>
+        )}
+        {events.map((evt, i) => (
           <div key={i} className="flex items-baseline gap-2.5">
             <span className="text-xs tabular-nums text-black/40 w-10 flex-shrink-0">
               {evt.time}
@@ -19,9 +57,6 @@ export default function TodaysActivities() {
           </div>
         ))}
       </div>
-      <p className="text-[10px] text-black/25 mt-4 italic">
-        Placeholder — Google Calendar integration coming in Phase 2
-      </p>
     </ComponentCard>
   );
 }
