@@ -1,21 +1,26 @@
 "use client";
 
-import { useState, useRef, useCallback, KeyboardEvent } from "react";
+import { useState, useRef, useCallback, KeyboardEvent, DragEvent, FormEvent } from "react";
 import Image from "next/image";
 
 interface TimeboxItem {
   id: string;
   text: string;
   checked: boolean;
+  notionPageId?: string;
 }
 
 export default function Timebox() {
   const [items, setItems] = useState<TimeboxItem[]>([]);
   const [newText, setNewText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
+  const isExternalDrag = useRef(false);
 
   const handleTitleClick = useCallback(async () => {
     if (refreshing) return;
@@ -42,19 +47,66 @@ export default function Timebox() {
     }
   };
 
-  const toggleCheck = (id: string) => {
+  const toggleCheck = async (id: string) => {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+
+    const newChecked = !item.checked;
     setItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, checked: !item.checked } : item
-      )
+      prev.map((i) => (i.id === id ? { ...i, checked: newChecked } : i))
     );
+
+    // Sync to Notion if this item came from the To-Do List
+    if (item.notionPageId) {
+      try {
+        await fetch("/api/notion-tasks", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pageId: item.notionPageId, done: newChecked }),
+        });
+      } catch (err) {
+        console.error("Failed to update Notion task:", err);
+        setItems((prev) =>
+          prev.map((i) => (i.id === id ? { ...i, checked: !newChecked } : i))
+        );
+      }
+    }
   };
 
   const deleteItem = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleDragStart = (index: number) => {
+  const startEditing = (item: TimeboxItem) => {
+    setEditingId(item.id);
+    setEditText(item.text);
+  };
+
+  const commitEdit = () => {
+    if (editingId === null) return;
+    const trimmed = editText.trim();
+    if (trimmed) {
+      setItems((prev) =>
+        prev.map((i) => (i.id === editingId ? { ...i, text: trimmed } : i))
+      );
+    }
+    setEditingId(null);
+  };
+
+  const handleEditKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEdit();
+    } else if (e.key === "Escape") {
+      setEditingId(null);
+    }
+  };
+
+  // Internal drag-and-drop for reordering
+  const handleDragStart = (e: DragEvent, index: number) => {
+    // Mark as internal drag so we don't treat it as a todo drop
+    e.dataTransfer.setData("application/timebox-reorder", String(index));
+    isExternalDrag.current = false;
     dragItem.current = index;
   };
 
@@ -63,6 +115,7 @@ export default function Timebox() {
   };
 
   const handleDragEnd = () => {
+    if (isExternalDrag.current) return;
     if (dragItem.current === null || dragOverItem.current === null) return;
     const updated = [...items];
     const [dragged] = updated.splice(dragItem.current, 1);
@@ -70,6 +123,67 @@ export default function Timebox() {
     setItems(updated);
     dragItem.current = null;
     dragOverItem.current = null;
+  };
+
+  // External drop zone — accepts tasks from TodoList
+  const getDropIndex = (e: DragEvent<HTMLDivElement>) => {
+    const container = e.currentTarget;
+    const children = Array.from(container.querySelectorAll("[data-timebox-item]"));
+    const mouseY = e.clientY;
+
+    for (let i = 0; i < children.length; i++) {
+      const rect = children[i].getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (mouseY < midY) return i;
+    }
+    return children.length;
+  };
+
+  const handleContainerDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes("application/todo-task")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    isExternalDrag.current = true;
+    setDropIndex(getDropIndex(e));
+  };
+
+  const handleContainerDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    // Only clear if leaving the container entirely
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setDropIndex(null);
+  };
+
+  const handleContainerDrop = (e: DragEvent<HTMLDivElement>) => {
+    const raw = e.dataTransfer.getData("application/todo-task");
+    if (!raw) return;
+    e.preventDefault();
+
+    const data = JSON.parse(raw) as {
+      notionPageId: string;
+      label: string;
+      done: boolean;
+    };
+
+    const insertAt = getDropIndex(e);
+    const newItem: TimeboxItem = {
+      id: crypto.randomUUID(),
+      text: data.label,
+      checked: data.done,
+      notionPageId: data.notionPageId,
+    };
+
+    setItems((prev) => {
+      const next = [...prev];
+      next.splice(insertAt, 0, newItem);
+      return next;
+    });
+
+    setDropIndex(null);
+
+    // Notify TodoList to remove the task
+    window.dispatchEvent(
+      new CustomEvent("todo-dropped", { detail: data.notionPageId })
+    );
   };
 
   const hasItems = items.length > 0;
@@ -107,72 +221,107 @@ export default function Timebox() {
       </button>
 
       <div className={`flex-1 flex flex-col transition-opacity duration-300 ${refreshing ? "opacity-30" : "opacity-100"}`}>
-      {/* Items list */}
-      <div className="flex flex-col gap-1 mb-3">
+      {/* Items list — also the drop zone */}
+      <div
+        className={`flex flex-col gap-1 ${items.length > 0 ? "mb-3" : ""}`}
+        onDragOver={handleContainerDragOver}
+        onDragLeave={handleContainerDragLeave}
+        onDrop={handleContainerDrop}
+      >
         {items.map((item, index) => (
-          <div
-            key={item.id}
-            draggable
-            onDragStart={() => handleDragStart(index)}
-            onDragEnter={() => handleDragEnter(index)}
-            onDragEnd={handleDragEnd}
-            onDragOver={(e) => e.preventDefault()}
-            className="group flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-forest/5 cursor-grab active:cursor-grabbing transition-colors"
-          >
-            {/* Drag handle */}
-            <span className="text-forest/30 group-hover:text-forest/50 text-xs select-none">
-              ⠿
-            </span>
-
-            {/* Checkbox */}
-            <button
-              onClick={() => toggleCheck(item.id)}
-              className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-                item.checked
-                  ? "bg-cerulean border-cerulean"
-                  : "border-forest/30 hover:border-forest/50"
-              }`}
+          <div key={item.id}>
+            {/* Drop indicator line */}
+            {dropIndex === index && (
+              <div className="h-0.5 bg-cerulean rounded-full mx-2 my-0.5" />
+            )}
+            <div
+              data-timebox-item
+              draggable
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragEnter={() => handleDragEnter(index)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => e.preventDefault()}
+              className="group flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-forest/5 cursor-grab active:cursor-grabbing transition-colors"
             >
-              {item.checked && (
-                <svg
-                  width="10"
-                  height="8"
-                  viewBox="0 0 10 8"
-                  fill="none"
-                  className="text-white"
+              {/* Drag handle */}
+              <span className="text-forest/30 group-hover:text-forest/50 text-xs select-none">
+                ⠿
+              </span>
+
+              {/* Checkbox */}
+              <button
+                onClick={() => toggleCheck(item.id)}
+                className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                  item.checked
+                    ? "bg-cerulean border-cerulean"
+                    : "border-forest/30 hover:border-forest/50"
+                }`}
+              >
+                {item.checked && (
+                  <svg
+                    width="10"
+                    height="8"
+                    viewBox="0 0 10 8"
+                    fill="none"
+                    className="text-white"
+                  >
+                    <path
+                      d="M1 4L3.5 6.5L9 1"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </button>
+
+              {/* Text — double-click to edit */}
+              {editingId === item.id ? (
+                <input
+                  autoFocus
+                  type="text"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={handleEditKeyDown}
+                  onBlur={commitEdit}
+                  className="flex-1 text-sm leading-snug bg-transparent border-b border-cerulean py-0 px-0 focus:outline-none"
+                />
+              ) : (
+                <span
+                  onDoubleClick={() => startEditing(item)}
+                  className={`flex-1 text-sm leading-snug cursor-text ${
+                    item.checked
+                      ? "line-through text-black/30"
+                      : "text-black"
+                  }`}
                 >
-                  <path
-                    d="M1 4L3.5 6.5L9 1"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                  {item.text}
+                </span>
               )}
-            </button>
 
-            {/* Text */}
-            <span
-              className={`flex-1 text-sm leading-snug ${
-                item.checked
-                  ? "line-through text-black/30"
-                  : "text-black"
-              }`}
-            >
-              {item.text}
-            </span>
+              {/* Notion indicator */}
+              {item.notionPageId && (
+                <span className="text-[10px] text-black/20 select-none" title="Synced with Notion">
+                  ●
+                </span>
+              )}
 
-            {/* Delete */}
-            <button
-              onClick={() => deleteItem(item.id)}
-              className="opacity-0 group-hover:opacity-100 text-black/30 hover:text-red-500 transition-all text-xs"
-              aria-label="Delete item"
-            >
-              ✕
-            </button>
+              {/* Delete */}
+              <button
+                onClick={() => deleteItem(item.id)}
+                className="opacity-0 group-hover:opacity-100 text-black/30 hover:text-red-500 transition-all text-xs"
+                aria-label="Delete item"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         ))}
+        {/* Drop indicator at the end */}
+        {dropIndex === items.length && (
+          <div className="h-0.5 bg-cerulean rounded-full mx-2 my-0.5" />
+        )}
       </div>
 
       {/* Add new item */}

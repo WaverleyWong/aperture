@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, DragEvent } from "react";
 import ComponentCard from "./ComponentCard";
 
 type Task = {
@@ -12,13 +12,17 @@ type Task = {
 export default function TodoList() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const movedIds = useRef<Set<string>>(new Set());
 
   const fetchTasks = useCallback(async () => {
     try {
       const res = await fetch("/api/notion-tasks");
       const data = await res.json();
       if (data.tasks) {
-        setTasks(data.tasks);
+        // Filter out tasks that have been moved to the Timebox this session
+        setTasks(
+          (data.tasks as Task[]).filter((t) => !movedIds.current.has(t.id))
+        );
       }
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
@@ -31,11 +35,21 @@ export default function TodoList() {
     fetchTasks();
   }, [fetchTasks]);
 
+  // Listen for drop events from Timebox to remove the task
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const taskId = (e as CustomEvent<string>).detail;
+      movedIds.current.add(taskId);
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    };
+    window.addEventListener("todo-dropped", handler);
+    return () => window.removeEventListener("todo-dropped", handler);
+  }, []);
+
   const toggleTask = async (index: number) => {
     const task = tasks[index];
     const newDone = !task.done;
 
-    // Optimistic update
     setTasks((prev) =>
       prev.map((t, i) => (i === index ? { ...t, done: newDone } : t))
     );
@@ -48,15 +62,26 @@ export default function TodoList() {
       });
     } catch (err) {
       console.error("Failed to update task:", err);
-      // Revert on failure
       setTasks((prev) =>
         prev.map((t, i) => (i === index ? { ...t, done: !newDone } : t))
       );
     }
   };
 
+  const handleDragStart = (e: DragEvent, task: Task) => {
+    e.dataTransfer.setData(
+      "application/todo-task",
+      JSON.stringify({
+        notionPageId: task.id,
+        label: task.label,
+        done: task.done,
+      })
+    );
+    e.dataTransfer.effectAllowed = "move";
+  };
+
   return (
-    <ComponentCard title="To-Do List" className="h-full overflow-hidden">
+    <ComponentCard title="To-Do List" className="h-full overflow-hidden" onRefresh={fetchTasks}>
       <div className="flex flex-col gap-1 component-scroll overflow-y-auto">
         {loading ? (
           <p className="text-xs text-black/40 py-2">Loading tasks…</p>
@@ -66,7 +91,9 @@ export default function TodoList() {
           tasks.map((task, i) => (
             <div
               key={task.id}
-              className="group flex items-center gap-3 py-1.5 px-1 rounded-lg hover:bg-forest/5 transition-colors"
+              draggable
+              onDragStart={(e) => handleDragStart(e, task)}
+              className="group flex items-center gap-3 py-1.5 px-1 rounded-lg hover:bg-forest/5 transition-colors cursor-grab active:cursor-grabbing"
             >
               <button
                 onClick={() => toggleTask(i)}
