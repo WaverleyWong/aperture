@@ -1,17 +1,29 @@
 "use client";
 
-import { useState, useRef, useCallback, KeyboardEvent, DragEvent, FormEvent } from "react";
+import { useState, useRef, useCallback, useEffect, KeyboardEvent, DragEvent } from "react";
 import Image from "next/image";
 
-interface TimeboxItem {
+export interface TimeboxItem {
   id: string;
   text: string;
   checked: boolean;
   notionPageId?: string;
 }
 
+const STORAGE_KEY = "aperture-timebox";
+
+function loadItems(): TimeboxItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function Timebox() {
-  const [items, setItems] = useState<TimeboxItem[]>([]);
+  const [items, setItems] = useState<TimeboxItem[]>(loadItems);
   const [newText, setNewText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
@@ -21,6 +33,18 @@ export default function Timebox() {
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const isExternalDrag = useRef(false);
+
+  // Persist to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  }, [items]);
+
+  // Listen for day-gate clear event
+  useEffect(() => {
+    const handler = () => setItems([]);
+    window.addEventListener("timebox-clear", handler);
+    return () => window.removeEventListener("timebox-clear", handler);
+  }, []);
 
   const handleTitleClick = useCallback(async () => {
     if (refreshing) return;
