@@ -37,14 +37,24 @@ export default function TodoList() {
 
   // Listen for drop events from Timebox to remove the task
   useEffect(() => {
-    const handler = (e: Event) => {
+    const handleDrop = (e: Event) => {
       const taskId = (e as CustomEvent<string>).detail;
       movedIds.current.add(taskId);
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
     };
-    window.addEventListener("todo-dropped", handler);
-    return () => window.removeEventListener("todo-dropped", handler);
-  }, []);
+    const handleRestore = (e: Event) => {
+      const taskId = (e as CustomEvent<string>).detail;
+      movedIds.current.delete(taskId);
+      // Re-fetch to bring the task back with its current Notion state
+      fetchTasks();
+    };
+    window.addEventListener("todo-dropped", handleDrop);
+    window.addEventListener("todo-restored", handleRestore);
+    return () => {
+      window.removeEventListener("todo-dropped", handleDrop);
+      window.removeEventListener("todo-restored", handleRestore);
+    };
+  }, [fetchTasks]);
 
   const toggleTask = async (index: number) => {
     const task = tasks[index];

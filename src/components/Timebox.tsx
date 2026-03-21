@@ -98,7 +98,15 @@ export default function Timebox() {
   };
 
   const deleteItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+    const item = items.find((i) => i.id === id);
+    setItems((prev) => prev.filter((i) => i.id !== id));
+
+    // Return Notion-linked tasks back to the TodoList
+    if (item?.notionPageId) {
+      window.dispatchEvent(
+        new CustomEvent("todo-restored", { detail: item.notionPageId })
+      );
+    }
   };
 
   const startEditing = (item: TimeboxItem) => {

@@ -90,20 +90,22 @@ export async function POST(request: Request) {
 
     const targetDateObj = new Date(targetDate + "T12:00:00");
 
+    // Use client-provided todo_items if present, otherwise fetch from Notion
     const [todoItems, calorieCount] = await Promise.all([
-      fetchTodoItems(targetDate),
+      body.todo_items ? Promise.resolve(body.todo_items) : fetchTodoItems(targetDate),
       fetchCalories(targetDateObj),
     ]);
 
     const db = getDb();
     db.prepare(`
-      INSERT INTO daily_log (date, timebox_entries, todo_items, calorie_count, scribblebox)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO daily_log (date, timebox_entries, todo_items, calorie_count, scribblebox, note)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(date) DO UPDATE SET
         timebox_entries = excluded.timebox_entries,
         todo_items = excluded.todo_items,
         calorie_count = excluded.calorie_count,
         scribblebox = excluded.scribblebox,
+        note = excluded.note,
         created_at = datetime('now')
     `).run(
       targetDate,
@@ -111,6 +113,7 @@ export async function POST(request: Request) {
       JSON.stringify(todoItems),
       calorieCount,
       body.scribblebox ?? "",
+      body.note ?? "",
     );
 
     return NextResponse.json({ success: true, date: targetDate });

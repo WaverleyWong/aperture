@@ -10,9 +10,16 @@ export function runMigrations() {
       todo_items      TEXT,
       calorie_count   INTEGER,
       scribblebox     TEXT,
+      note            TEXT DEFAULT '',
       created_at      TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // Add note column if upgrading from older schema
+  const columns = db.prepare("PRAGMA table_info(daily_log)").all() as { name: string }[];
+  if (!columns.some((c) => c.name === "note")) {
+    db.exec("ALTER TABLE daily_log ADD COLUMN note TEXT DEFAULT ''");
+  }
 }
 
 // Run directly via: npx tsx src/db/migrate.ts

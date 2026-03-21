@@ -14,16 +14,17 @@ function getTodayISO(): string {
   return `${year}-${month}-${day}`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const today = getTodayISO();
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get("date") || getTodayISO();
 
     const response = await notion.dataSources.query({
       data_source_id: DATA_SOURCE_ID,
       filter: {
         property: "Due Date",
         date: {
-          equals: today,
+          equals: date,
         },
       },
     });
