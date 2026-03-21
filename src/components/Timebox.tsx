@@ -150,8 +150,10 @@ export default function Timebox() {
   };
 
   // External drop zone — accepts tasks from TodoList
+  const cardRef = useRef<HTMLDivElement>(null);
+
   const getDropIndex = (e: DragEvent<HTMLDivElement>) => {
-    const container = e.currentTarget;
+    const container = cardRef.current || e.currentTarget;
     const children = Array.from(container.querySelectorAll("[data-timebox-item]"));
     const mouseY = e.clientY;
 
@@ -213,7 +215,13 @@ export default function Timebox() {
   const hasItems = items.length > 0;
 
   return (
-    <div className="rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-5 flex flex-col shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)]">
+    <div
+      ref={cardRef}
+      className="rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-5 flex flex-col shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)]"
+      onDragOver={handleContainerDragOver}
+      onDragLeave={handleContainerDragLeave}
+      onDrop={handleContainerDrop}
+    >
       <button
         type="button"
         onClick={handleTitleClick}
@@ -248,9 +256,6 @@ export default function Timebox() {
       {/* Items list — also the drop zone */}
       <div
         className={`flex flex-col gap-1 ${items.length > 0 ? "mb-3" : ""}`}
-        onDragOver={handleContainerDragOver}
-        onDragLeave={handleContainerDragLeave}
-        onDrop={handleContainerDrop}
       >
         {items.map((item, index) => (
           <div key={item.id}>
