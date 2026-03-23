@@ -10,6 +10,7 @@
     "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@notionhq/client": "^5.14.0",
     "better-sqlite3": "^12.8.0",
     "googleapis": "^171.4.0",

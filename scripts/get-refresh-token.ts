@@ -43,7 +43,10 @@ const oauth2Client = new google.auth.OAuth2(
 const authUrl = oauth2Client.generateAuthUrl({
   access_type: "offline",
   prompt: "consent",
-  scope: ["https://www.googleapis.com/auth/calendar.readonly"],
+  scope: [
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
+  ],
 });
 
 const server = http.createServer(async (req, res) => {
