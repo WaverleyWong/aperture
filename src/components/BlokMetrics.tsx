@@ -9,6 +9,10 @@ type BlokData = {
   sc90TrialsTY: number;
   sc90TrialsLY: number;
   asOfDate: string;
+  metaSpend: number;
+  googleSpend: number;
+  totalAdSpend: number;
+  blendedCAC: number;
 };
 
 function pctChange(ty: number, ly: number): number {
@@ -70,8 +74,8 @@ export default function BlokMetrics() {
         <p className="text-xs text-black/40 py-2">Unable to load metrics.</p>
       ) : (
         <div className="flex flex-col gap-4">
-          {/* Two metric cards side by side */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Three metric cards */}
+          <div className="grid grid-cols-3 gap-4">
             {/* Total Sales */}
             <div className="rounded-2xl bg-forest/[0.03] border border-forest/[0.06] px-4 py-3">
               <div className="text-[10px] uppercase tracking-[0.12em] text-black/40 mb-2">
@@ -103,11 +107,26 @@ export default function BlokMetrics() {
                 vs {data.sc90TrialsLY} LY
               </div>
             </div>
+
+            {/* Blended CAC */}
+            <div className="rounded-2xl bg-forest/[0.03] border border-forest/[0.06] px-4 py-3">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-black/40 mb-2">
+                Blended CAC
+              </div>
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-lg font-semibold tabular-nums text-black/85">
+                  {formatCurrency(data.blendedCAC)}
+                </span>
+              </div>
+              <div className="text-[10px] tabular-nums text-black/30">
+                {formatCurrency(data.metaSpend)} Meta + {formatCurrency(data.googleSpend)} Google
+              </div>
+            </div>
           </div>
 
           {/* Data freshness */}
           <div className="text-[10px] text-black/25 text-right">
-            Data as of {formatDate(data.asOfDate)}
+            Sales data as of {formatDate(data.asOfDate)}
           </div>
         </div>
       )}
