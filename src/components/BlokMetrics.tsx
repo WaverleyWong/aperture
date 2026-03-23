@@ -41,9 +41,22 @@ function ChangeIndicator({ value }: { value: number }) {
   );
 }
 
+const placeholder: BlokData = {
+  totalSalesTY: 184250,
+  totalSalesLY: 167800,
+  sc90TrialsTY: 142,
+  sc90TrialsLY: 131,
+  asOfDate: "2026-03-21",
+  metaSpend: 6820,
+  googleSpend: 5410,
+  totalAdSpend: 12230,
+  blendedCAC: 86,
+};
+
 export default function BlokMetrics() {
   const [data, setData] = useState<BlokData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [visible, setVisible] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -63,8 +76,9 @@ export default function BlokMetrics() {
     fetchData();
   }, [fetchData]);
 
-  const salesChange = data ? pctChange(data.totalSalesTY, data.totalSalesLY) : 0;
-  const trialsChange = data ? pctChange(data.sc90TrialsTY, data.sc90TrialsLY) : 0;
+  const d = visible && data ? data : placeholder;
+  const salesChange = d ? pctChange(d.totalSalesTY, d.totalSalesLY) : 0;
+  const trialsChange = d ? pctChange(d.sc90TrialsTY, d.sc90TrialsLY) : 0;
 
   return (
     <ComponentCard title="BLOK Metrics" className="col-span-2" onRefresh={fetchData}>
@@ -74,6 +88,27 @@ export default function BlokMetrics() {
         <p className="text-xs text-black/40 py-2">Unable to load metrics.</p>
       ) : (
         <div className="flex flex-col gap-4">
+          <div className="flex justify-end -mt-2 mb-0">
+            <button
+              onClick={() => setVisible((v) => !v)}
+              className="text-black/30 hover:text-black/50 transition-colors"
+              aria-label={visible ? "Hide real data" : "Show real data"}
+            >
+              {visible ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              )}
+            </button>
+          </div>
+
           {/* Three metric cards */}
           <div className="grid grid-cols-3 gap-4">
             {/* Total Sales */}
@@ -83,12 +118,12 @@ export default function BlokMetrics() {
               </div>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-lg font-semibold tabular-nums text-black/85">
-                  {formatCurrency(data.totalSalesTY)}
+                  {formatCurrency(d.totalSalesTY)}
                 </span>
                 <ChangeIndicator value={salesChange} />
               </div>
               <div className="text-[10px] tabular-nums text-black/30">
-                vs {formatCurrency(data.totalSalesLY)} LY
+                vs {formatCurrency(d.totalSalesLY)} LY
               </div>
             </div>
 
@@ -99,12 +134,12 @@ export default function BlokMetrics() {
               </div>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-lg font-semibold tabular-nums text-black/85">
-                  {data.sc90TrialsTY}
+                  {d.sc90TrialsTY}
                 </span>
                 <ChangeIndicator value={trialsChange} />
               </div>
               <div className="text-[10px] tabular-nums text-black/30">
-                vs {data.sc90TrialsLY} LY
+                vs {d.sc90TrialsLY} LY
               </div>
             </div>
 
@@ -115,18 +150,18 @@ export default function BlokMetrics() {
               </div>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-lg font-semibold tabular-nums text-black/85">
-                  {formatCurrency(data.blendedCAC)}
+                  {formatCurrency(d.blendedCAC)}
                 </span>
               </div>
               <div className="text-[10px] tabular-nums text-black/30">
-                {formatCurrency(data.metaSpend)} Meta + {formatCurrency(data.googleSpend)} Google
+                {formatCurrency(d.metaSpend)} Meta + {formatCurrency(d.googleSpend)} Google
               </div>
             </div>
           </div>
 
           {/* Data freshness */}
           <div className="text-[10px] text-black/25 text-right">
-            Sales data as of {formatDate(data.asOfDate)}
+            Sales data as of {formatDate(d.asOfDate)}
           </div>
         </div>
       )}
