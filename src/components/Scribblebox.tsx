@@ -36,8 +36,27 @@ type InteractionMode =
   | "resize-se"
   | "resize-sw";
 
+function PenIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
 export default function Scribblebox() {
-  const [open, setOpen] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [text, setText] = useState("");
   const [loaded, setLoaded] = useState(false);
 
@@ -48,6 +67,7 @@ export default function Scribblebox() {
   const mode = useRef<InteractionMode>(null);
   const startMouse = useRef({ x: 0, y: 0 });
   const startRect = useRef({ x: 0, y: 0, w: 0, h: 0 });
+  const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Load persisted text on mount
   useEffect(() => {
@@ -56,16 +76,16 @@ export default function Scribblebox() {
     setLoaded(true);
   }, []);
 
-  // Set initial position once open
+  // Set initial popup position once open
   useEffect(() => {
-    if (open && !posInitialised) {
+    if (popupOpen && !posInitialised) {
       setPos({
         x: window.innerWidth - size.w - 60,
         y: window.innerHeight - size.h - 80,
       });
       setPosInitialised(true);
     }
-  }, [open, posInitialised, size.w, size.h]);
+  }, [popupOpen, posInitialised, size.w, size.h]);
 
   // Persist text on change
   useEffect(() => {
@@ -73,6 +93,15 @@ export default function Scribblebox() {
       localStorage.setItem(STORAGE_KEY, text);
     }
   }, [text, loaded]);
+
+  // Focus fullscreen textarea when opening
+  useEffect(() => {
+    if (fullscreenOpen && fullscreenTextareaRef.current) {
+      const ta = fullscreenTextareaRef.current;
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }
+  }, [fullscreenOpen]);
 
   const handleClear = () => {
     setText("");
@@ -160,35 +189,43 @@ export default function Scribblebox() {
 
   return (
     <>
-      {/* Floating trigger button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-forest text-white shadow-lg hover:bg-forest/90 transition-colors flex items-center justify-center"
-        aria-label="Open Scribblebox"
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 20h9" />
-          <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-        </svg>
-      </button>
+      {/* ── Taskbar: fixed bottom-center tab ── */}
+      {!fullscreenOpen && (
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 flex items-end">
+          <button
+            onClick={() => {
+              setFullscreenOpen(true);
+              setPopupOpen(false);
+            }}
+            className="group flex items-center justify-center gap-2 w-[160px] py-2 bg-forest/90 hover:bg-forest text-white rounded-t-xl backdrop-blur-sm shadow-lg transition-all"
+          >
+            <PenIcon />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] opacity-80 group-hover:opacity-100 transition-opacity">
+              Scribblebox
+            </span>
+          </button>
+        </div>
+      )}
 
-      {/* Popup */}
-      {open && (
+      {/* ── Floating trigger button (bottom-right, for quick popup) ── */}
+      {!fullscreenOpen && (
+        <button
+          onClick={() => setPopupOpen((v) => !v)}
+          className="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-forest text-white shadow-lg hover:bg-forest/90 transition-colors flex items-center justify-center"
+          aria-label="Open Scribblebox"
+        >
+          <PenIcon />
+        </button>
+      )}
+
+      {/* ── Popup (small floating window) ── */}
+      {popupOpen && !fullscreenOpen && (
         <div
           style={{ left: pos.x, top: pos.y, width: size.w, height: size.h }}
           className="fixed z-50 rounded-2xl border border-forest/20 bg-white/95 backdrop-blur-md shadow-xl flex flex-col overflow-hidden"
         >
           {/* Resize handles — edges */}
-          <div onMouseDown={onResizeStart("resize-n")} className={`${edge} top-0 left-[${GRIP}px] right-[${GRIP}px] h-[${GRIP}px] cursor-n-resize`} style={{ top: 0, left: GRIP, right: GRIP, height: GRIP, cursor: "n-resize" }} />
+          <div onMouseDown={onResizeStart("resize-n")} className={edge} style={{ top: 0, left: GRIP, right: GRIP, height: GRIP, cursor: "n-resize" }} />
           <div onMouseDown={onResizeStart("resize-s")} className={edge} style={{ bottom: 0, left: GRIP, right: GRIP, height: GRIP, cursor: "s-resize" }} />
           <div onMouseDown={onResizeStart("resize-w")} className={edge} style={{ left: 0, top: GRIP, bottom: GRIP, width: GRIP, cursor: "w-resize" }} />
           <div onMouseDown={onResizeStart("resize-e")} className={edge} style={{ right: 0, top: GRIP, bottom: GRIP, width: GRIP, cursor: "e-resize" }} />
@@ -217,7 +254,7 @@ export default function Scribblebox() {
                 </button>
               )}
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => setPopupOpen(false)}
                 className="text-black/30 hover:text-black/60 transition-colors text-sm leading-none"
                 aria-label="Close"
               >
@@ -233,6 +270,71 @@ export default function Scribblebox() {
             placeholder={dailyPlaceholder()}
             className="flex-1 px-4 py-3 text-sm text-black bg-transparent resize-none focus:outline-none placeholder:text-black/25 placeholder:italic"
           />
+        </div>
+      )}
+
+      {/* ── Full-screen writing overlay ── */}
+      {fullscreenOpen && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-[#FAF5EC]">
+          {/* Header */}
+          <div className="flex items-center justify-between px-10 py-6 shrink-0">
+            <h1 className="text-sm font-semibold uppercase tracking-[0.18em] text-forest">
+              Scribblebox
+            </h1>
+            <div className="flex items-center gap-4">
+              {text.length > 0 && (
+                <button
+                  onClick={handleClear}
+                  className="text-[10px] uppercase tracking-wider text-black/30 hover:text-red-500 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                onClick={() => setFullscreenOpen(false)}
+                className="flex items-center gap-1.5 text-black/30 hover:text-black/60 transition-colors"
+                aria-label="Close full-screen"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                <span className="text-[10px] uppercase tracking-wider font-medium">Close</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="mx-10 border-t border-forest/[0.08]" />
+
+          {/* Writing area */}
+          <div className="flex-1 flex justify-center overflow-hidden px-10 py-8">
+            <textarea
+              ref={fullscreenTextareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={dailyPlaceholder()}
+              className="w-full max-w-3xl text-base leading-relaxed text-black bg-transparent resize-none focus:outline-none placeholder:text-black/20 placeholder:italic"
+            />
+          </div>
+
+          {/* Bottom taskbar — return to dashboard */}
+          <div className="shrink-0 flex justify-center pb-0">
+            <button
+              onClick={() => setFullscreenOpen(false)}
+              className="group flex items-center justify-center gap-2 w-[160px] py-2 bg-forest/90 hover:bg-forest text-white rounded-t-xl backdrop-blur-sm shadow-lg transition-all"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] opacity-80 group-hover:opacity-100 transition-opacity">
+                Dashboard
+              </span>
+            </button>
+          </div>
         </div>
       )}
     </>
