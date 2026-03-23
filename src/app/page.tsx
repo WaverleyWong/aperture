@@ -3,9 +3,8 @@ import Timebox from "@/components/Timebox";
 import MonthlyFinance from "@/components/MonthlyFinance";
 import CalorieTracker from "@/components/CalorieTracker";
 import TodaysActivities from "@/components/TodaysActivities";
-import WavesDigest from "@/components/WavesDigest";
 import Fitness from "@/components/Fitness";
-import WorkDigest from "@/components/WorkDigest";
+import Digest from "@/components/Digest";
 import BlokMetrics from "@/components/BlokMetrics";
 import Scribblebox from "@/components/Scribblebox";
 import SkyBanner from "@/components/SkyBanner";
@@ -20,7 +19,6 @@ export default function Home() {
           {/* Column 1 */}
           <div className="flex flex-col gap-5">
             <TodoList />
-            <WavesDigest />
             <Fitness />
           </div>
 
@@ -43,8 +41,8 @@ export default function Home() {
             {/* Row B: BLOK Metrics */}
             <BlokMetrics />
 
-            {/* Row C: Work Digest */}
-            <WorkDigest />
+            {/* Row C: Digest */}
+            <Digest />
           </div>
         </div>
 
