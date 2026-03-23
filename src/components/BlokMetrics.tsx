@@ -41,17 +41,7 @@ function ChangeIndicator({ value }: { value: number }) {
   );
 }
 
-const placeholder: BlokData = {
-  totalSalesTY: 184250,
-  totalSalesLY: 167800,
-  sc90TrialsTY: 142,
-  sc90TrialsLY: 131,
-  asOfDate: "2026-03-21",
-  metaSpend: 6820,
-  googleSpend: 5410,
-  totalAdSpend: 12230,
-  blendedCAC: 86,
-};
+const REDACTED = "🙈🙊🙉";
 
 export default function BlokMetrics() {
   const [data, setData] = useState<BlokData | null>(null);
@@ -76,9 +66,8 @@ export default function BlokMetrics() {
     fetchData();
   }, [fetchData]);
 
-  const d = visible && data ? data : placeholder;
-  const salesChange = d ? pctChange(d.totalSalesTY, d.totalSalesLY) : 0;
-  const trialsChange = d ? pctChange(d.sc90TrialsTY, d.sc90TrialsLY) : 0;
+  const salesChange = data ? pctChange(data.totalSalesTY, data.totalSalesLY) : 0;
+  const trialsChange = data ? pctChange(data.sc90TrialsTY, data.sc90TrialsLY) : 0;
 
   return (
     <ComponentCard title="BLOK Metrics" className="col-span-2" onRefresh={fetchData}>
@@ -118,12 +107,12 @@ export default function BlokMetrics() {
               </div>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-lg font-semibold tabular-nums text-black/85">
-                  {formatCurrency(d.totalSalesTY)}
+                  {visible ? formatCurrency(data.totalSalesTY) : REDACTED}
                 </span>
-                <ChangeIndicator value={salesChange} />
+                {visible && <ChangeIndicator value={salesChange} />}
               </div>
               <div className="text-[10px] tabular-nums text-black/30">
-                vs {formatCurrency(d.totalSalesLY)} LY
+                vs {visible ? formatCurrency(data.totalSalesLY) : REDACTED} LY
               </div>
             </div>
 
@@ -134,12 +123,12 @@ export default function BlokMetrics() {
               </div>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-lg font-semibold tabular-nums text-black/85">
-                  {d.sc90TrialsTY}
+                  {visible ? data.sc90TrialsTY : REDACTED}
                 </span>
-                <ChangeIndicator value={trialsChange} />
+                {visible && <ChangeIndicator value={trialsChange} />}
               </div>
               <div className="text-[10px] tabular-nums text-black/30">
-                vs {d.sc90TrialsLY} LY
+                vs {visible ? data.sc90TrialsLY : REDACTED} LY
               </div>
             </div>
 
@@ -150,18 +139,27 @@ export default function BlokMetrics() {
               </div>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-lg font-semibold tabular-nums text-black/85">
-                  {formatCurrency(d.blendedCAC)}
+                  {visible ? formatCurrency(data.blendedCAC) : REDACTED}
                 </span>
               </div>
               <div className="text-[10px] tabular-nums text-black/30">
-                {formatCurrency(d.metaSpend)} Meta + {formatCurrency(d.googleSpend)} Google
+                {visible
+                  ? `${formatCurrency(data.metaSpend)} Meta + ${formatCurrency(data.googleSpend)} Google`
+                  : `${REDACTED} Meta + ${REDACTED} Google`}
               </div>
             </div>
           </div>
 
-          {/* Data freshness */}
-          <div className="text-[10px] text-black/25 text-right">
-            Sales data as of {formatDate(d.asOfDate)}
+          {/* Data freshness + privacy notice */}
+          <div className="flex justify-between items-baseline">
+            {!visible && (
+              <div className="text-[10px] text-black/25 italic">
+                Placeholder data for privacy — toggle real numbers with the eye icon above
+              </div>
+            )}
+            <div className="text-[10px] text-black/25 text-right ml-auto">
+              Sales data as of {formatDate(data.asOfDate)}
+            </div>
           </div>
         </div>
       )}

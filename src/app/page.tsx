@@ -40,11 +40,11 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Row B: Work Digest */}
-            <WorkDigest />
-
-            {/* Row C: BLOK Metrics */}
+            {/* Row B: BLOK Metrics */}
             <BlokMetrics />
+
+            {/* Row C: Work Digest */}
+            <WorkDigest />
           </div>
         </div>
 
