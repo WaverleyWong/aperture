@@ -1,9 +1,9 @@
 import { getDb } from "./database";
 
-export function runMigrations() {
+export async function runMigrations() {
   const db = getDb();
 
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS daily_log (
       date            TEXT PRIMARY KEY,
       timebox_entries TEXT,
@@ -16,14 +16,9 @@ export function runMigrations() {
   `);
 
   // Add note column if upgrading from older schema
-  const columns = db.prepare("PRAGMA table_info(daily_log)").all() as { name: string }[];
-  if (!columns.some((c) => c.name === "note")) {
-    db.exec("ALTER TABLE daily_log ADD COLUMN note TEXT DEFAULT ''");
+  const columns = await db.execute("PRAGMA table_info(daily_log)");
+  const hasNote = columns.rows.some((c) => c.name === "note");
+  if (!hasNote) {
+    await db.execute("ALTER TABLE daily_log ADD COLUMN note TEXT DEFAULT ''");
   }
-}
-
-// Run directly via: npx tsx src/db/migrate.ts
-if (require.main === module) {
-  runMigrations();
-  console.log("Migration complete — daily_log table ready.");
 }

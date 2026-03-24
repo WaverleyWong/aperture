@@ -60,11 +60,11 @@ async function fetchCalories(date: Date) {
 // GET: check if a log exists for today
 export async function GET() {
   try {
-    runMigrations();
+    await runMigrations();
     const today = getDateISO();
     const db = getDb();
-    const row = db.prepare("SELECT date FROM daily_log WHERE date = ?").get(today);
-    return NextResponse.json({ exists: !!row, date: today });
+    const row = await db.execute({ sql: "SELECT date FROM daily_log WHERE date = ?", args: [today] });
+    return NextResponse.json({ exists: row.rows.length > 0, date: today });
   } catch (error: unknown) {
     console.error("Daily log GET error:", error);
     return NextResponse.json({ exists: false, error: "Failed to check daily log" }, { status: 500 });
@@ -76,7 +76,7 @@ export async function GET() {
 // If date is omitted, defaults to yesterday
 export async function POST(request: Request) {
   try {
-    runMigrations();
+    await runMigrations();
 
     const body = await request.json().catch(() => ({}));
 
@@ -96,24 +96,27 @@ export async function POST(request: Request) {
     ]);
 
     const db = getDb();
-    db.prepare(`
-      INSERT INTO daily_log (date, timebox_entries, todo_items, calorie_count, scribblebox, note)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(date) DO UPDATE SET
-        timebox_entries = excluded.timebox_entries,
-        todo_items = excluded.todo_items,
-        calorie_count = excluded.calorie_count,
-        scribblebox = excluded.scribblebox,
-        note = excluded.note,
-        created_at = datetime('now')
-    `).run(
-      targetDate,
-      JSON.stringify(body.timebox_entries ?? []),
-      JSON.stringify(todoItems),
-      calorieCount,
-      body.scribblebox ?? "",
-      body.note ?? "",
-    );
+    await db.execute({
+      sql: `
+        INSERT INTO daily_log (date, timebox_entries, todo_items, calorie_count, scribblebox, note)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(date) DO UPDATE SET
+          timebox_entries = excluded.timebox_entries,
+          todo_items = excluded.todo_items,
+          calorie_count = excluded.calorie_count,
+          scribblebox = excluded.scribblebox,
+          note = excluded.note,
+          created_at = datetime('now')
+      `,
+      args: [
+        targetDate,
+        JSON.stringify(body.timebox_entries ?? []),
+        JSON.stringify(todoItems),
+        calorieCount,
+        body.scribblebox ?? "",
+        body.note ?? "",
+      ],
+    });
 
     return NextResponse.json({ success: true, date: targetDate });
   } catch (error: unknown) {
