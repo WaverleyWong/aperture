@@ -19,8 +19,8 @@ function getWorkOAuth2Client() {
 
 function getPersonalOAuth2Client() {
   const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.PERSONAL_GOOGLE_CLIENT_ID,
+    process.env.PERSONAL_GOOGLE_CLIENT_SECRET,
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/calendar/callback`
   );
   oauth2Client.setCredentials({
