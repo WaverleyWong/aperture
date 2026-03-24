@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
-const STORAGE_KEY = "aperture-scribblebox";
+const STATE_KEY = "scribblebox";
 const MIN_W = 240;
 const MIN_H = 180;
 
@@ -68,12 +68,17 @@ export default function Scribblebox() {
   const startMouse = useRef({ x: 0, y: 0 });
   const startRect = useRef({ x: 0, y: 0, w: 0, h: 0 });
   const fullscreenTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load persisted text on mount
+  // Load from Turso on mount
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) setText(saved);
-    setLoaded(true);
+    fetch(`/api/state?key=${STATE_KEY}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.value) setText(data.value);
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
   }, []);
 
   // Set initial popup position once open
@@ -87,11 +92,17 @@ export default function Scribblebox() {
     }
   }, [popupOpen, posInitialised, size.w, size.h]);
 
-  // Persist text on change
+  // Debounced save to Turso on change
   useEffect(() => {
-    if (loaded) {
-      localStorage.setItem(STORAGE_KEY, text);
-    }
+    if (!loaded) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: STATE_KEY, value: text }),
+      }).catch(() => {});
+    }, 500);
   }, [text, loaded]);
 
   // Focus fullscreen textarea when opening
@@ -105,7 +116,7 @@ export default function Scribblebox() {
 
   const handleClear = () => {
     setText("");
-    localStorage.removeItem(STORAGE_KEY);
+    fetch("/api/state?key=" + STATE_KEY, { method: "DELETE" }).catch(() => {});
   };
 
   // Start drag

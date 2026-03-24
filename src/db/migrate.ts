@@ -15,6 +15,14 @@ export async function runMigrations() {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS live_state (
+      key        TEXT PRIMARY KEY,
+      value      TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   // Add note column if upgrading from older schema
   const columns = await db.execute("PRAGMA table_info(daily_log)");
   const hasNote = columns.rows.some((c) => c.name === "note");

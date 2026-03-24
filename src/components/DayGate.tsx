@@ -2,10 +2,6 @@
 
 import { useState, useEffect } from "react";
 
-const TIMEBOX_KEY = "aperture-timebox";
-const SCRIBBLE_KEY = "aperture-scribblebox";
-const REVIEW_DATE_KEY = "aperture-last-review";
-
 function getTodayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -52,17 +48,21 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
 
     async function run() {
       try {
+        // Fetch all live state from Turso
+        const stateRes = await fetch("/api/state");
+        const state = await stateRes.json();
+
+        const lastReview = state.last_review ?? null;
+
         // Check if today's review was already completed
-        const lastReview = localStorage.getItem(REVIEW_DATE_KEY);
         if (lastReview === getTodayISO()) {
           if (!cancelled) setStatus("ready");
           return;
         }
 
-        // Load yesterday's data for review
-        const timeboxRaw = localStorage.getItem(TIMEBOX_KEY);
-        const scribbleRaw = localStorage.getItem(SCRIBBLE_KEY);
-        const entries: TimeboxEntry[] = timeboxRaw ? JSON.parse(timeboxRaw) : [];
+        // Load yesterday's data from live state
+        const entries: TimeboxEntry[] = state.timebox ? JSON.parse(state.timebox) : [];
+        const scribbleText = state.scribblebox ?? "";
 
         // Fetch yesterday's Notion tasks
         let tasks: TodoItem[] = [];
@@ -77,7 +77,7 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setTimeboxEntries(entries);
           setTodoItems(tasks);
-          setScribblebox(scribbleRaw || "");
+          setScribblebox(scribbleText);
           setStatus("review");
         }
       } catch (err) {
@@ -100,6 +100,21 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
     setTimeboxEntries((prev) =>
       prev.map((t, i) => (i === index ? { ...t, checked: !t.checked } : t))
     );
+  };
+
+  const markReviewedAndClear = async () => {
+    // Mark review complete in Turso
+    await fetch("/api/state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "last_review", value: getTodayISO() }),
+    });
+
+    // Clear timebox in Turso for the new day
+    await fetch("/api/state?key=timebox", { method: "DELETE" });
+
+    // Notify Timebox component to clear its in-memory state
+    window.dispatchEvent(new Event("timebox-clear"));
   };
 
   const saveAndClear = async () => {
@@ -130,7 +145,7 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
       }
       await Promise.allSettled(patchPromises);
 
-      // Archive to SQLite
+      // Archive to database
       await fetch("/api/daily-log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -145,11 +160,7 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
       console.error("Save error:", err);
     }
 
-    // Mark review complete and clear timebox for the new day
-    localStorage.setItem(REVIEW_DATE_KEY, getTodayISO());
-    localStorage.removeItem(TIMEBOX_KEY);
-    window.dispatchEvent(new Event("timebox-clear"));
-
+    await markReviewedAndClear();
     setStatus("ready");
   };
 
@@ -157,25 +168,23 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
     setStatus("saving");
 
     try {
-      const timeboxRaw = localStorage.getItem(TIMEBOX_KEY);
-      const scribbleRaw = localStorage.getItem(SCRIBBLE_KEY);
+      // Fetch current live state for archiving
+      const stateRes = await fetch("/api/state");
+      const state = await stateRes.json();
 
       await fetch("/api/daily-log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          timebox_entries: timeboxRaw ? JSON.parse(timeboxRaw) : [],
-          scribblebox: scribbleRaw || "",
+          timebox_entries: state.timebox ? JSON.parse(state.timebox) : [],
+          scribblebox: state.scribblebox || "",
         }),
       });
     } catch (err) {
       console.error("Skip save error:", err);
     }
 
-    localStorage.setItem(REVIEW_DATE_KEY, getTodayISO());
-    localStorage.removeItem(TIMEBOX_KEY);
-    window.dispatchEvent(new Event("timebox-clear"));
-
+    await markReviewedAndClear();
     setStatus("ready");
   };
 

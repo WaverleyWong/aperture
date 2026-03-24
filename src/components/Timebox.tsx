@@ -10,20 +10,11 @@ export interface TimeboxItem {
   notionPageId?: string;
 }
 
-const STORAGE_KEY = "aperture-timebox";
-
-function loadItems(): TimeboxItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
+const STATE_KEY = "timebox";
 
 export default function Timebox() {
-  const [items, setItems] = useState<TimeboxItem[]>(loadItems);
+  const [items, setItems] = useState<TimeboxItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [newText, setNewText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
@@ -33,11 +24,33 @@ export default function Timebox() {
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const isExternalDrag = useRef(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Persist to localStorage on every change
+  // Load from Turso on mount
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+    fetch(`/api/state?key=${STATE_KEY}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.value) {
+          try { setItems(JSON.parse(data.value)); } catch { /* ignore */ }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  // Debounced save to Turso on every change (after initial load)
+  useEffect(() => {
+    if (!loaded) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: STATE_KEY, value: JSON.stringify(items) }),
+      }).catch(() => {});
+    }, 300);
+  }, [items, loaded]);
 
   // Listen for day-gate clear event
   useEffect(() => {
