@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSgzddtRP1SLEHf2EX17va8duRsMv0D09a79TgD2D6XubKJNKK9z5XSsBIyA_hssie7HJ1TDhmu0Qp7/pub?output=csv";
+const CSV_URL = process.env.FINANCE_CSV_URL!;
 
 function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
@@ -105,8 +104,7 @@ export async function GET() {
 
     return NextResponse.json({ match: true, categories });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Finance API error:", message);
-    return NextResponse.json({ categories: [], error: message }, { status: 500 });
+    console.error("Finance API error:", error);
+    return NextResponse.json({ categories: [], error: "Failed to load finance data" }, { status: 500 });
   }
 }

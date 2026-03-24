@@ -8,7 +8,7 @@ function getOAuth2Client() {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    "http://localhost:3000/api/calendar/callback"
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/calendar/callback`
   );
   oauth2Client.setCredentials({
     refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
@@ -120,8 +120,7 @@ ${emailList}`,
       emailCount: messages.length,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Work Digest API error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Work Digest API error:", error);
+    return NextResponse.json({ error: "Failed to load work digest" }, { status: 500 });
   }
 }

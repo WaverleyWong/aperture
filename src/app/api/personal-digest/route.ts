@@ -1,9 +1,20 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { google } from "googleapis";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+function getPersonalOAuth2Client() {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    `${process.env.NEXT_PUBLIC_BASE_URL}/api/calendar/callback`
+  );
+  oauth2Client.setCredentials({
+    refresh_token: process.env.PERSONAL_GOOGLE_REFRESH_TOKEN,
+  });
+  return oauth2Client;
+}
 
 type EmailSummary = {
   sender: string;
@@ -16,72 +27,59 @@ type DigestResult = {
   fyi: EmailSummary[];
 };
 
-type McpEmail = {
-  headers?: { from?: string; subject?: string; date?: string };
-  snippet?: string;
-};
-
-async function fetchPersonalEmails() {
-  const transport = new StdioClientTransport({
-    command: "node",
-    args: [
-      "/Users/waverleywong/.config/mcp/mcp-google-workspace/dist/server.js",
-      "--gauth-file",
-      "/Users/waverleywong/.config/mcp/mcp-google-workspace/.gauth.json",
-      "--accounts-file",
-      "/Users/waverleywong/.config/mcp/mcp-google-workspace/.accounts.json",
-      "--credentials-dir",
-      "/Users/waverleywong/.config/mcp/mcp-google-workspace",
-    ],
-  });
-
-  const client = new Client({ name: "aperture-personal-digest", version: "1.0.0" });
-
-  try {
-    await client.connect(transport);
-
-    const result = await client.callTool({
-      name: "gmail_query_emails",
-      arguments: {
-        user_id: "waverleybrontewong@gmail.com",
-        query: "in:inbox newer_than:2d",
-        max_results: 20,
-      },
-    });
-
-    // The MCP tool returns content as an array of content blocks
-    const textBlock = Array.isArray(result.content)
-      ? result.content.find((c: { type: string }) => c.type === "text")
-      : null;
-
-    if (!textBlock || textBlock.type !== "text") {
-      return [];
-    }
-
-    const emails: McpEmail[] = JSON.parse(textBlock.text);
-    return emails;
-  } finally {
-    await client.close();
-  }
-}
-
 export async function GET() {
   try {
-    const emails = await fetchPersonalEmails();
+    const auth = getPersonalOAuth2Client();
+    const gmail = google.gmail({ version: "v1", auth });
 
-    if (emails.length === 0) {
+    // Build query: from yesterday start-of-day to now
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    const afterEpoch = Math.floor(yesterday.getTime() / 1000);
+    const query = `in:inbox after:${afterEpoch}`;
+
+    // Fetch message IDs (max 20)
+    const listRes = await gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults: 20,
+    });
+
+    const messageIds = (listRes.data.messages || []).map((m) => m.id!);
+
+    if (messageIds.length === 0) {
       return NextResponse.json({ needsReply: [], fyi: [], emailCount: 0 });
     }
 
-    // Build prompt for Claude
-    const emailList = emails
-      .map((m, i) => {
-        const from = m.headers?.from || "";
-        const subject = m.headers?.subject || "(No subject)";
-        const date = m.headers?.date || "";
-        const snippet = m.snippet || "";
-        return `[${i + 1}] From: ${from}\nSubject: ${subject}\nDate: ${date}\nPreview: ${snippet}\n`;
+    // Fetch message details in parallel
+    const messages = await Promise.all(
+      messageIds.map(async (id) => {
+        const msg = await gmail.users.messages.get({
+          userId: "me",
+          id,
+          format: "metadata",
+          metadataHeaders: ["From", "Subject", "Date"],
+        });
+
+        const headers = msg.data.payload?.headers || [];
+        const from = headers.find((h) => h.name === "From")?.value || "";
+        const subject =
+          headers.find((h) => h.name === "Subject")?.value || "(No subject)";
+        const date = headers.find((h) => h.name === "Date")?.value || "";
+        const snippet = msg.data.snippet || "";
+
+        return { from, subject, date, snippet };
       })
+    );
+
+    // Build prompt for Claude
+    const emailList = messages
+      .map(
+        (m, i) =>
+          `[${i + 1}] From: ${m.from}\nSubject: ${m.subject}\nDate: ${m.date}\nPreview: ${m.snippet}\n`
+      )
       .join("\n");
 
     const anthropic = new Anthropic();
@@ -118,11 +116,10 @@ ${emailList}`,
     return NextResponse.json({
       needsReply: digest.needsReply || [],
       fyi: digest.fyi || [],
-      emailCount: emails.length,
+      emailCount: messages.length,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Personal Digest API error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Personal Digest API error:", error);
+    return NextResponse.json({ error: "Failed to load personal digest" }, { status: 500 });
   }
 }

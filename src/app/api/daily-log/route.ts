@@ -8,8 +8,7 @@ export const dynamic = "force-dynamic";
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 const DATA_SOURCE_ID = "31c6a25e-43e7-80fa-b823-000b12e22547";
 
-const CALORIE_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHq-ibcAS5aOefw9hdSDp4xHDFtpV8L6ymcDlCyUHy-fIhjunztjhPqOMksQrNSmHqku80JOV8idtG/pub?output=csv";
+const CALORIE_CSV_URL = process.env.NEXT_PUBLIC_CALORIE_CSV_URL!;
 
 function getDateISO(d: Date = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -67,8 +66,8 @@ export async function GET() {
     const row = db.prepare("SELECT date FROM daily_log WHERE date = ?").get(today);
     return NextResponse.json({ exists: !!row, date: today });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ exists: false, error: message }, { status: 500 });
+    console.error("Daily log GET error:", error);
+    return NextResponse.json({ exists: false, error: "Failed to check daily log" }, { status: 500 });
   }
 }
 
@@ -118,8 +117,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, date: targetDate });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Daily log error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Daily log POST error:", error);
+    return NextResponse.json({ error: "Failed to save daily log" }, { status: 500 });
   }
 }

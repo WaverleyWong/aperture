@@ -25,7 +25,7 @@ export async function GET() {
     }
 
     const slack = new WebClient(token);
-    const userId = "U03M9BMMN2V";
+    const userId = process.env.SLACK_USER_ID!;
 
     // Build date range: yesterday start-of-day
     const yesterday = new Date();
@@ -133,8 +133,7 @@ ${messageList}`,
       messageCount: unique.length,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Slack Digest API error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Slack Digest API error:", error);
+    return NextResponse.json({ error: "Failed to load Slack digest" }, { status: 500 });
   }
 }

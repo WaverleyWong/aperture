@@ -51,9 +51,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ tasks });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Notion tasks error:", message);
-    return NextResponse.json({ tasks: [], error: message }, { status: 500 });
+    console.error("Notion tasks error:", error);
+    return NextResponse.json({ tasks: [], error: "Failed to load tasks" }, { status: 500 });
   }
 }
 
@@ -72,8 +71,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Notion update error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Notion update error:", error);
+    return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
   }
 }

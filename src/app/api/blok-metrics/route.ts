@@ -2,14 +2,9 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const SNOWFLAKE_CSV =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTIFdfdIVSq8yQc4rfzS-YhewlF6ET9d_x9QS9GO29_OEH5abhwZpMcvpLwkdW61pctEtWVcT5O6Qq5/pub?gid=718206136&single=true&output=csv";
-
-const META_ADS_CSV =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQS7WFUKw59l4BmCv_CHunN7a4dc0NKuQHxtoEH9ynnv8DSuanlQpxXlnyuMVgn7GDll4lzv6Vjz8of/pub?gid=1855868377&single=true&output=csv";
-
-const GOOGLE_ADS_CSV =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQS7WFUKw59l4BmCv_CHunN7a4dc0NKuQHxtoEH9ynnv8DSuanlQpxXlnyuMVgn7GDll4lzv6Vjz8of/pub?gid=165344445&single=true&output=csv";
+const SNOWFLAKE_CSV = process.env.SNOWFLAKE_CSV_URL!;
+const META_ADS_CSV = process.env.META_ADS_CSV_URL!;
+const GOOGLE_ADS_CSV = process.env.GOOGLE_ADS_CSV_URL!;
 
 function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
@@ -147,8 +142,7 @@ export async function GET() {
       blendedCAC,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("BLOK Metrics API error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("BLOK Metrics API error:", error);
+    return NextResponse.json({ error: "Failed to load metrics" }, { status: 500 });
   }
 }

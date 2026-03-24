@@ -3,8 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import ComponentCard from "./ComponentCard";
 
-const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHq-ibcAS5aOefw9hdSDp4xHDFtpV8L6ymcDlCyUHy-fIhjunztjhPqOMksQrNSmHqku80JOV8idtG/pub?output=csv";
+const SHEET_CSV_URL = process.env.NEXT_PUBLIC_CALORIE_CSV_URL!;
 
 function parseDateCell(raw: string): string | null {
   const trimmed = raw.trim();
