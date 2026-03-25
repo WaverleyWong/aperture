@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 function getBackgroundColor(hour: number): string {
   if (hour >= 2 && hour <= 11) return "#E6FDFF";
   if (hour > 11 && hour < 18) return "#2F9C95";
-  return "#03254E"; // 18:00–01:59
+  return "#000000"; // 18:00–01:59
 }
 
 function isDarkBg(hour: number): boolean {
@@ -27,8 +27,10 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
   const bg = hour !== null ? getBackgroundColor(hour) : "#E6FDFF";
   const dark = hour !== null ? isDarkBg(hour) : false;
 
-  // Keep the mobile status bar colour in sync
+  // Set background on html + body so overscroll areas match, and update theme-color
   useEffect(() => {
+    document.documentElement.style.backgroundColor = bg;
+    document.body.style.backgroundColor = bg;
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", bg);
   }, [bg]);
