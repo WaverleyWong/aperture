@@ -37,6 +37,15 @@ body {
   opacity: 0.3;
 }
 
+/* Hide scrollbar for swipe panels */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Drag styling */
 .dragging {
   opacity: 0.5;

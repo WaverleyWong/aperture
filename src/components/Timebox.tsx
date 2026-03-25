@@ -59,6 +59,30 @@ export default function Timebox() {
     return () => window.removeEventListener("timebox-clear", handler);
   }, []);
 
+  // Listen for send-to-timebox events from TodoList (mobile tap)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const data = (e as CustomEvent).detail as {
+        notionPageId: string;
+        label: string;
+        done: boolean;
+      };
+      const newItem: TimeboxItem = {
+        id: crypto.randomUUID(),
+        text: data.label,
+        checked: data.done,
+        notionPageId: data.notionPageId,
+      };
+      setItems((prev) => [...prev, newItem]);
+      // Notify TodoList to remove the task
+      window.dispatchEvent(
+        new CustomEvent("todo-dropped", { detail: data.notionPageId })
+      );
+    };
+    window.addEventListener("todo-send-to-timebox", handler);
+    return () => window.removeEventListener("todo-send-to-timebox", handler);
+  }, []);
+
   const handleTitleClick = useCallback(async () => {
     if (refreshing) return;
     setRefreshing(true);
@@ -291,7 +315,7 @@ export default function Timebox() {
               onDragEnter={() => handleDragEnter(index)}
               onDragEnd={handleDragEnd}
               onDragOver={(e) => e.preventDefault()}
-              className="group flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-forest/5 cursor-grab active:cursor-grabbing transition-colors"
+              className="group flex items-center gap-3 py-3 md:py-2 px-2 rounded-lg hover:bg-forest/5 cursor-grab active:cursor-grabbing transition-colors"
             >
               {/* Drag handle */}
               <span className="text-forest/30 group-hover:text-forest/50 text-xs select-none">
@@ -301,7 +325,7 @@ export default function Timebox() {
               {/* Checkbox */}
               <button
                 onClick={() => toggleCheck(item.id)}
-                className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                className={`w-5 h-5 md:w-4 md:h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                   item.checked
                     ? "bg-cerulean border-cerulean"
                     : "border-forest/30 hover:border-forest/50"

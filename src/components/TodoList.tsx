@@ -90,6 +90,17 @@ export default function TodoList() {
     e.dataTransfer.effectAllowed = "move";
   };
 
+  const sendToTimebox = (task: Task) => {
+    // Dispatch the same events that drag-and-drop uses
+    window.dispatchEvent(
+      new CustomEvent("todo-send-to-timebox", {
+        detail: { notionPageId: task.id, label: task.label, done: task.done },
+      })
+    );
+    movedIds.current.add(task.id);
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+  };
+
   return (
     <ComponentCard title="To-Do List" className="h-full overflow-hidden" onRefresh={fetchTasks}>
       <div className="flex flex-col gap-1 component-scroll overflow-y-auto">
@@ -103,18 +114,18 @@ export default function TodoList() {
               key={task.id}
               draggable
               onDragStart={(e) => handleDragStart(e, task)}
-              className="group flex items-center gap-3 py-1.5 px-1 rounded-lg hover:bg-forest/5 transition-colors cursor-grab active:cursor-grabbing"
+              className="group flex items-center gap-3 py-2.5 md:py-1.5 px-1 rounded-lg hover:bg-forest/5 transition-colors cursor-grab active:cursor-grabbing"
             >
               <button
                 onClick={() => toggleTask(i)}
-                className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                className={`w-5 h-5 md:w-3.5 md:h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                   task.done
                     ? "bg-cerulean border-cerulean"
                     : "border-forest/30 hover:border-forest/50"
                 }`}
               >
                 {task.done && (
-                  <svg width="8" height="6" viewBox="0 0 10 8" fill="none">
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
                     <path
                       d="M1 4L3.5 6.5L9 1"
                       stroke="white"
@@ -132,6 +143,20 @@ export default function TodoList() {
               >
                 {task.label}
               </span>
+              {/* Send to Timebox — visible on mobile, hover on desktop */}
+              {!task.done && (
+                <button
+                  onClick={() => sendToTimebox(task)}
+                  className="md:opacity-0 md:group-hover:opacity-100 text-forest/40 hover:text-cerulean transition-all p-1"
+                  aria-label="Send to Timebox"
+                  title="Send to Timebox"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </button>
+              )}
             </div>
           ))
         )}

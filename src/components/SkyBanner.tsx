@@ -76,7 +76,7 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
       />
 
       {/* Page content */}
-      <div className="relative z-10 p-6 lg:p-8">
+      <div className="relative z-10 p-4 md:p-6 lg:p-8">
         {/* Header */}
         <header className="mb-8 flex items-baseline justify-between">
           <h1
