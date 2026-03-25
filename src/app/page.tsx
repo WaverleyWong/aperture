@@ -53,8 +53,8 @@ export default function Home() {
           <MobileSwipePanel
             defaultIndex={0}
             panels={[
-              { key: "todo", label: "To-Do", content: <TodoList /> },
               { key: "timebox", label: "Timebox", content: <Timebox /> },
+              { key: "todo", label: "To-Do", content: <TodoList /> },
             ]}
           />
 

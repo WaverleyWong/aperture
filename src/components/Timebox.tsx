@@ -353,7 +353,12 @@ export default function Timebox() {
               {/* Text — double-click to edit */}
               {editingId === item.id ? (
                 <input
-                  autoFocus
+                  ref={(el) => {
+                    if (el) {
+                      el.focus();
+                      el.setSelectionRange(0, 0);
+                    }
+                  }}
                   type="text"
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
