@@ -143,24 +143,14 @@ export default function Timebox() {
     }
   };
 
-  // Immediately persist items to Turso (bypasses debounce) and notify TodoList
-  const saveAndNotifyTodo = async (updatedItems: TimeboxItem[], notionPageId?: string) => {
-    // Cancel any pending debounced save
+  // Immediately persist items to Turso (bypasses debounce)
+  const flushSave = (updatedItems: TimeboxItem[]) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-
-    // Save to Turso immediately
-    await fetch("/api/state", {
+    fetch("/api/state", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key: STATE_KEY, value: JSON.stringify(updatedItems) }),
     }).catch(() => {});
-
-    // Now it's safe to tell TodoList to re-fetch
-    if (notionPageId) {
-      window.dispatchEvent(
-        new CustomEvent("todo-restored", { detail: notionPageId })
-      );
-    }
   };
 
   const deleteItem = (id: string) => {
@@ -170,7 +160,13 @@ export default function Timebox() {
     setReorderingId(null);
 
     if (item?.notionPageId) {
-      saveAndNotifyTodo(updated, item.notionPageId);
+      flushSave(updated);
+      // Send full task data so TodoList can add it back instantly
+      window.dispatchEvent(
+        new CustomEvent("todo-restored", {
+          detail: { id: item.notionPageId, label: item.text, done: item.checked },
+        })
+      );
     }
   };
 
@@ -179,7 +175,15 @@ export default function Timebox() {
     setItems(updated);
     setReorderingId(null);
 
-    saveAndNotifyTodo(updated, item.notionPageId);
+    flushSave(updated);
+    // Send full task data so TodoList can add it back instantly
+    if (item.notionPageId) {
+      window.dispatchEvent(
+        new CustomEvent("todo-restored", {
+          detail: { id: item.notionPageId, label: item.text, done: item.checked },
+        })
+      );
+    }
   };
 
   const startEditing = (item: TimeboxItem) => {

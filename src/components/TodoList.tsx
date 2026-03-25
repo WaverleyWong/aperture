@@ -62,9 +62,14 @@ export default function TodoList() {
       const taskId = (e as CustomEvent<string>).detail;
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
     };
-    const handleRestore = () => {
-      // Re-fetch to bring the task back (it's no longer in timebox state)
-      fetchTasks();
+    const handleRestore = (e: Event) => {
+      // Add the task back instantly from event data — no re-fetch needed
+      const task = (e as CustomEvent).detail as Task;
+      setTasks((prev) => {
+        // Avoid duplicates if the task is somehow already there
+        if (prev.some((t) => t.id === task.id)) return prev;
+        return [...prev, task];
+      });
     };
     window.addEventListener("todo-dropped", handleDrop);
     window.addEventListener("todo-restored", handleRestore);
@@ -72,7 +77,7 @@ export default function TodoList() {
       window.removeEventListener("todo-dropped", handleDrop);
       window.removeEventListener("todo-restored", handleRestore);
     };
-  }, [fetchTasks]);
+  }, []);
 
   const toggleTask = async (index: number) => {
     const task = tasks[index];
