@@ -20,11 +20,13 @@ export default function Timebox() {
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const isExternalDrag = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load from Turso on mount
   useEffect(() => {
@@ -54,7 +56,10 @@ export default function Timebox() {
 
   // Listen for day-gate clear event
   useEffect(() => {
-    const handler = () => setItems([]);
+    const handler = () => {
+      setItems([]);
+      setReorderingId(null);
+    };
     window.addEventListener("timebox-clear", handler);
     return () => window.removeEventListener("timebox-clear", handler);
   }, []);
@@ -78,6 +83,14 @@ export default function Timebox() {
     window.addEventListener("todo-send-to-timebox", handler);
     return () => window.removeEventListener("todo-send-to-timebox", handler);
   }, []);
+
+  // Dismiss reorder controls when tapping outside
+  useEffect(() => {
+    if (!reorderingId) return;
+    const dismiss = () => setReorderingId(null);
+    window.addEventListener("click", dismiss);
+    return () => window.removeEventListener("click", dismiss);
+  }, [reorderingId]);
 
   const handleTitleClick = useCallback(async () => {
     if (refreshing) return;
@@ -133,6 +146,7 @@ export default function Timebox() {
   const deleteItem = (id: string) => {
     const item = items.find((i) => i.id === id);
     setItems((prev) => prev.filter((i) => i.id !== id));
+    setReorderingId(null);
 
     // Return Notion-linked tasks back to the TodoList
     if (item?.notionPageId) {
@@ -142,9 +156,23 @@ export default function Timebox() {
     }
   };
 
+  const sendToTodo = (item: TimeboxItem) => {
+    // Remove from timebox (this updates Turso via the save effect)
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    setReorderingId(null);
+
+    // Tell TodoList to re-fetch so the task reappears
+    if (item.notionPageId) {
+      window.dispatchEvent(
+        new CustomEvent("todo-restored", { detail: item.notionPageId })
+      );
+    }
+  };
+
   const startEditing = (item: TimeboxItem) => {
     setEditingId(item.id);
     setEditText(item.text);
+    setReorderingId(null);
   };
 
   const commitEdit = () => {
@@ -167,9 +195,42 @@ export default function Timebox() {
     }
   };
 
-  // Internal drag-and-drop for reordering
+  // Mobile reorder: move item up or down
+  const moveItem = (id: string, direction: "up" | "down") => {
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.id === id);
+      if (idx < 0) return prev;
+      const target = direction === "up" ? idx - 1 : idx + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  };
+
+  // Long-press handling for mobile
+  const handleTouchStart = (id: string) => {
+    longPressTimer.current = setTimeout(() => {
+      setReorderingId(id);
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  // Internal drag-and-drop for reordering (desktop only)
   const handleDragStart = (e: DragEvent, index: number) => {
-    // Mark as internal drag so we don't treat it as a todo drop
     e.dataTransfer.setData("application/timebox-reorder", String(index));
     isExternalDrag.current = false;
     dragItem.current = index;
@@ -190,7 +251,7 @@ export default function Timebox() {
     dragOverItem.current = null;
   };
 
-  // External drop zone — accepts tasks from TodoList
+  // External drop zone — accepts tasks from TodoList (desktop)
   const cardRef = useRef<HTMLDivElement>(null);
 
   const getDropIndex = (e: DragEvent<HTMLDivElement>) => {
@@ -215,7 +276,6 @@ export default function Timebox() {
   };
 
   const handleContainerDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    // Only clear if leaving the container entirely
     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setDropIndex(null);
   };
@@ -247,7 +307,6 @@ export default function Timebox() {
 
     setDropIndex(null);
 
-    // Notify TodoList to remove the task
     window.dispatchEvent(
       new CustomEvent("todo-dropped", { detail: data.notionPageId })
     );
@@ -294,27 +353,38 @@ export default function Timebox() {
       </button>
 
       <div className={`flex-1 flex flex-col transition-opacity duration-300 ${refreshing ? "opacity-30" : "opacity-100"}`}>
-      {/* Items list — also the drop zone */}
+      {/* Items list */}
       <div
         className={`flex flex-col gap-1 ${items.length > 0 ? "mb-3" : ""}`}
       >
         {items.map((item, index) => (
           <div key={item.id}>
-            {/* Drop indicator line */}
+            {/* Drop indicator line (desktop drag-and-drop) */}
             {dropIndex === index && (
               <div className="h-0.5 bg-cerulean rounded-full mx-2 my-0.5" />
             )}
+
             <div
               data-timebox-item
+              // Desktop: draggable for reorder
               draggable
               onDragStart={(e) => handleDragStart(e, index)}
               onDragEnter={() => handleDragEnter(index)}
               onDragEnd={handleDragEnd}
               onDragOver={(e) => e.preventDefault()}
-              className="group flex items-center gap-3 py-3 md:py-2 px-2 rounded-lg hover:bg-forest/5 cursor-grab active:cursor-grabbing transition-colors"
+              // Mobile: long-press to show reorder controls
+              onTouchStart={() => handleTouchStart(item.id)}
+              onTouchEnd={handleTouchEnd}
+              onTouchMove={handleTouchMove}
+              onClick={(e) => e.stopPropagation()}
+              className={`group flex items-center gap-3 py-3 md:py-2 px-2 rounded-lg transition-colors ${
+                reorderingId === item.id
+                  ? "bg-cerulean/10"
+                  : "hover:bg-forest/5 md:cursor-grab md:active:cursor-grabbing"
+              }`}
             >
-              {/* Drag handle */}
-              <span className="text-forest/30 group-hover:text-forest/50 text-xs select-none">
+              {/* Drag handle — desktop only */}
+              <span className="hidden md:inline text-forest/30 group-hover:text-forest/50 text-xs select-none">
                 ⠿
               </span>
 
@@ -377,20 +447,97 @@ export default function Timebox() {
 
               {/* Notion indicator */}
               {item.notionPageId && (
-                <span className="text-[10px] text-black/20 select-none" title="Synced with Notion">
+                <span className="text-[10px] text-black/20 select-none hidden md:inline" title="Synced with Notion">
                   ●
                 </span>
               )}
 
-              {/* Delete */}
+              {/* Mobile: Send back to To-Do (for Notion tasks) */}
+              {item.notionPageId && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); sendToTodo(item); }}
+                  className="md:hidden text-forest/40 hover:text-cerulean transition-all p-1"
+                  aria-label="Send back to To-Do"
+                  title="Send back to To-Do"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Desktop: Send back to To-Do (hover) */}
+              {item.notionPageId && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); sendToTodo(item); }}
+                  className="hidden md:block opacity-0 group-hover:opacity-100 text-forest/40 hover:text-cerulean transition-all p-1"
+                  aria-label="Send back to To-Do"
+                  title="Send back to To-Do"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 5 5 12 12 19" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Delete — desktop hover only */}
               <button
                 onClick={() => deleteItem(item.id)}
-                className="opacity-0 group-hover:opacity-100 text-black/30 hover:text-red-500 transition-all text-xs"
+                className="hidden md:block opacity-0 group-hover:opacity-100 text-black/30 hover:text-red-500 transition-all text-xs"
                 aria-label="Delete item"
               >
                 ✕
               </button>
             </div>
+
+            {/* Mobile reorder controls — shown on long-press */}
+            {reorderingId === item.id && (
+              <div
+                className="md:hidden flex items-center justify-between px-3 py-1.5 bg-forest/[0.04] rounded-lg mx-1 mt-0.5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => moveItem(item.id, "up")}
+                    disabled={index === 0}
+                    className="p-2 rounded-lg text-forest/50 hover:text-forest disabled:text-black/15 transition-colors"
+                    aria-label="Move up"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="18 15 12 9 6 15" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => moveItem(item.id, "down")}
+                    disabled={index === items.length - 1}
+                    className="p-2 rounded-lg text-forest/50 hover:text-forest disabled:text-black/15 transition-colors"
+                    aria-label="Move down"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => startEditing(item)}
+                    className="p-2 rounded-lg text-forest/50 hover:text-cerulean transition-colors text-xs"
+                    aria-label="Edit"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deleteItem(item.id)}
+                    className="p-2 rounded-lg text-black/30 hover:text-red-500 transition-colors text-xs"
+                    aria-label="Delete"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {/* Drop indicator at the end */}
