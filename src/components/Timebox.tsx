@@ -143,30 +143,43 @@ export default function Timebox() {
     }
   };
 
-  const deleteItem = (id: string) => {
-    const item = items.find((i) => i.id === id);
-    setItems((prev) => prev.filter((i) => i.id !== id));
-    setReorderingId(null);
+  // Immediately persist items to Turso (bypasses debounce) and notify TodoList
+  const saveAndNotifyTodo = async (updatedItems: TimeboxItem[], notionPageId?: string) => {
+    // Cancel any pending debounced save
+    if (saveTimer.current) clearTimeout(saveTimer.current);
 
-    // Return Notion-linked tasks back to the TodoList
-    if (item?.notionPageId) {
+    // Save to Turso immediately
+    await fetch("/api/state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: STATE_KEY, value: JSON.stringify(updatedItems) }),
+    }).catch(() => {});
+
+    // Now it's safe to tell TodoList to re-fetch
+    if (notionPageId) {
       window.dispatchEvent(
-        new CustomEvent("todo-restored", { detail: item.notionPageId })
+        new CustomEvent("todo-restored", { detail: notionPageId })
       );
     }
   };
 
-  const sendToTodo = (item: TimeboxItem) => {
-    // Remove from timebox (this updates Turso via the save effect)
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
+  const deleteItem = (id: string) => {
+    const item = items.find((i) => i.id === id);
+    const updated = items.filter((i) => i.id !== id);
+    setItems(updated);
     setReorderingId(null);
 
-    // Tell TodoList to re-fetch so the task reappears
-    if (item.notionPageId) {
-      window.dispatchEvent(
-        new CustomEvent("todo-restored", { detail: item.notionPageId })
-      );
+    if (item?.notionPageId) {
+      saveAndNotifyTodo(updated, item.notionPageId);
     }
+  };
+
+  const sendToTodo = (item: TimeboxItem) => {
+    const updated = items.filter((i) => i.id !== item.id);
+    setItems(updated);
+    setReorderingId(null);
+
+    saveAndNotifyTodo(updated, item.notionPageId);
   };
 
   const startEditing = (item: TimeboxItem) => {
