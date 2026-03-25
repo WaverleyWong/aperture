@@ -5,14 +5,14 @@ import { useEffect, useState } from "react";
 type BgStyle = { backgroundColor: string } | { background: string };
 
 function getBackgroundStyle(hour: number): BgStyle {
-  if (hour >= 2 && hour <= 11) return { backgroundColor: "#E6FDFF" };
-  if (hour > 11 && hour < 18) return { backgroundColor: "#2F9C95" };
+  if (hour >= 2 && hour <= 11) return { background: "linear-gradient(180deg, #FFF8E8 0%, #F3FEFF 100%)" };
+  if (hour > 11 && hour < 18) return { background: "linear-gradient(180deg, #D3FFED 0%, #9EDCDE 100%)" };
   return { background: "linear-gradient(180deg, #112A48 0%, #000000 100%)" };
 }
 
 function getThemeColor(hour: number): string {
-  if (hour >= 2 && hour <= 11) return "#E6FDFF";
-  if (hour > 11 && hour < 18) return "#2F9C95";
+  if (hour >= 2 && hour <= 11) return "#FFF8E8";
+  if (hour > 11 && hour < 18) return "#D3FFED";
   return "#112A48";
 }
 
