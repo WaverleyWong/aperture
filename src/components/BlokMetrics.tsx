@@ -99,7 +99,7 @@ export default function BlokMetrics() {
           </div>
 
           {/* Three metric cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {/* Total Sales */}
             <div className="rounded-2xl bg-forest/[0.03] border border-forest/[0.06] px-4 py-3">
               <div className="text-[10px] uppercase tracking-[0.12em] text-black/40 mb-2">
@@ -133,7 +133,7 @@ export default function BlokMetrics() {
             </div>
 
             {/* Blended CAC */}
-            <div className="rounded-2xl bg-forest/[0.03] border border-forest/[0.06] px-4 py-3">
+            <div className="rounded-2xl bg-forest/[0.03] border border-forest/[0.06] px-4 py-3 col-span-2 md:col-span-1">
               <div className="text-[10px] uppercase tracking-[0.12em] text-black/40 mb-2">
                 Blended CAC
               </div>
