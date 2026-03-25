@@ -16,7 +16,6 @@
 }
 
 body {
-  background: var(--beige);
   color: var(--black);
   font-family: 'Suisse Intl', var(--font-inter), Inter, system-ui, sans-serif;
   min-height: 100vh;

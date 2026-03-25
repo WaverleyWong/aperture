@@ -4,8 +4,8 @@
   "description": "Personal dashboard",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FBF6ED",
-  "theme_color": "#e6eed6",
+  "background_color": "#E6FDFF",
+  "theme_color": "#E6FDFF",
   "orientation": "any",
   "icons": [
     {

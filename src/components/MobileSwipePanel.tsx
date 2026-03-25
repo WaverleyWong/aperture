@@ -45,20 +45,19 @@ export default function MobileSwipePanel({ panels, defaultIndex = 0 }: MobileSwi
 
   return (
     <div className="flex flex-col">
-      {/* Tab indicators */}
-      <div className="flex justify-center gap-4 pb-3">
+      {/* Dot indicators */}
+      <div className="flex justify-center gap-2 pb-3">
         {panels.map((panel, i) => (
           <button
             key={panel.key}
             onClick={() => scrollTo(i)}
-            className={`text-[11px] font-semibold uppercase tracking-[0.12em] px-3 py-1.5 rounded-full transition-colors ${
+            className={`w-1.5 h-1.5 rounded-full transition-colors ${
               activeIndex === i
-                ? "bg-forest/10 text-forest"
-                : "text-black/30"
+                ? "bg-forest/50"
+                : "bg-black/15"
             }`}
-          >
-            {panel.label}
-          </button>
+            aria-label={panel.label}
+          />
         ))}
       </div>
 
