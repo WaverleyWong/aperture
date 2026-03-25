@@ -74,10 +74,6 @@ export default function Timebox() {
         notionPageId: data.notionPageId,
       };
       setItems((prev) => [...prev, newItem]);
-      // Notify TodoList to remove the task
-      window.dispatchEvent(
-        new CustomEvent("todo-dropped", { detail: data.notionPageId })
-      );
     };
     window.addEventListener("todo-send-to-timebox", handler);
     return () => window.removeEventListener("todo-send-to-timebox", handler);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, DragEvent } from "react";
+import { useState, useEffect, useCallback, DragEvent } from "react";
 import ComponentCard from "./ComponentCard";
 
 type Task = {
@@ -9,19 +9,40 @@ type Task = {
   done: boolean;
 };
 
+type TimeboxItem = {
+  notionPageId?: string;
+};
+
 export default function TodoList() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const movedIds = useRef<Set<string>>(new Set());
 
   const fetchTasks = useCallback(async () => {
     try {
-      const res = await fetch("/api/notion-tasks");
-      const data = await res.json();
-      if (data.tasks) {
-        // Filter out tasks that have been moved to the Timebox this session
+      // Fetch Notion tasks and current timebox state in parallel
+      const [tasksRes, stateRes] = await Promise.all([
+        fetch("/api/notion-tasks"),
+        fetch("/api/state?key=timebox"),
+      ]);
+      const tasksData = await tasksRes.json();
+      const stateData = await stateRes.json();
+
+      // Extract Notion page IDs already in the timebox
+      let movedIds = new Set<string>();
+      if (stateData.value) {
+        try {
+          const timeboxItems: TimeboxItem[] = JSON.parse(stateData.value);
+          movedIds = new Set(
+            timeboxItems
+              .map((item) => item.notionPageId)
+              .filter((id): id is string => !!id)
+          );
+        } catch { /* ignore parse errors */ }
+      }
+
+      if (tasksData.tasks) {
         setTasks(
-          (data.tasks as Task[]).filter((t) => !movedIds.current.has(t.id))
+          (tasksData.tasks as Task[]).filter((t) => !movedIds.has(t.id))
         );
       }
     } catch (err) {
@@ -35,17 +56,14 @@ export default function TodoList() {
     fetchTasks();
   }, [fetchTasks]);
 
-  // Listen for drop events from Timebox to remove the task
+  // Listen for events from Timebox
   useEffect(() => {
     const handleDrop = (e: Event) => {
       const taskId = (e as CustomEvent<string>).detail;
-      movedIds.current.add(taskId);
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
     };
-    const handleRestore = (e: Event) => {
-      const taskId = (e as CustomEvent<string>).detail;
-      movedIds.current.delete(taskId);
-      // Re-fetch to bring the task back with its current Notion state
+    const handleRestore = () => {
+      // Re-fetch to bring the task back (it's no longer in timebox state)
       fetchTasks();
     };
     window.addEventListener("todo-dropped", handleDrop);
@@ -91,13 +109,12 @@ export default function TodoList() {
   };
 
   const sendToTimebox = (task: Task) => {
-    // Dispatch the same events that drag-and-drop uses
     window.dispatchEvent(
       new CustomEvent("todo-send-to-timebox", {
         detail: { notionPageId: task.id, label: task.label, done: task.done },
       })
     );
-    movedIds.current.add(task.id);
+    // Remove immediately from local state (Timebox will persist it to Turso)
     setTasks((prev) => prev.filter((t) => t.id !== task.id));
   };
 
@@ -143,7 +160,7 @@ export default function TodoList() {
               >
                 {task.label}
               </span>
-              {/* Send to Timebox — visible on mobile, hover on desktop */}
+              {/* Send to Timebox — always visible on mobile, hover on desktop */}
               {!task.done && (
                 <button
                   onClick={() => sendToTimebox(task)}
@@ -152,8 +169,8 @@ export default function TodoList() {
                   title="Send to Timebox"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 5 5 12 12 19" />
                   </svg>
                 </button>
               )}
