@@ -202,14 +202,41 @@ export default function Timebox() {
       setItems((prev) =>
         prev.map((i) => (i.id === editingId ? { ...i, text: trimmed } : i))
       );
+    } else {
+      // Remove empty entries
+      setItems((prev) => prev.filter((i) => i.id !== editingId));
     }
     setEditingId(null);
+  };
+
+  const commitEditAndAddBelow = () => {
+    if (editingId === null) return;
+    const trimmed = editText.trim();
+    const newId = crypto.randomUUID();
+
+    setItems((prev) => {
+      const updated = trimmed
+        ? prev.map((i) => (i.id === editingId ? { ...i, text: trimmed } : i))
+        : prev.filter((i) => i.id !== editingId); // remove if empty
+
+      // Insert new entry below the current one
+      const idx = updated.findIndex((i) => i.id === editingId);
+      const insertAt = idx >= 0 ? idx + 1 : updated.length;
+      const next = [...updated];
+      next.splice(insertAt, 0, { id: newId, text: "", checked: false });
+      return next;
+    });
+
+    // Start editing the new entry
+    editInitialised.current = false;
+    setEditingId(newId);
+    setEditText("");
   };
 
   const handleEditKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      commitEdit();
+      commitEditAndAddBelow();
     } else if (e.key === "Escape") {
       setEditingId(null);
     }
