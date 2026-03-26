@@ -7,6 +7,37 @@ const SHEET_CSV_URL = process.env.NEXT_PUBLIC_CALORIE_CSV_URL!;
 
 type WeightEntry = { date: string; weight: number };
 
+// Parse CSV properly, handling quoted fields with commas
+function parseCSVRow(line: string): string[] {
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      fields.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
+
 function parseDateCell(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -126,15 +157,17 @@ export default function Vitals() {
     try {
       const res = await fetch(SHEET_CSV_URL);
       const text = await res.text();
-      const rows = text.split("\n").map((r) => r.split(","));
+      const lines = text.split("\n").filter((l) => l.trim());
+      const rows = lines.map(parseCSVRow);
+
+      // Find column indices from header row
+      const header = rows[0].map((h) => h.trim().toLowerCase());
+      const weightCol = header.indexOf("weight");
+      const targetCol = header.indexOf("target");
+      const countCol = header.indexOf("count");
 
       const key = todayKey();
       let found = false;
-
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
       const weights: WeightEntry[] = [];
 
       for (let i = 1; i < rows.length; i++) {
@@ -145,18 +178,17 @@ export default function Vitals() {
 
         // Calorie match for today
         if (rowKey === key) {
-          const targetVal = parseFloat(row[2]);
-          const countVal = parseFloat(row[3]);
+          const targetVal = targetCol >= 0 ? parseFloat(row[targetCol]) : NaN;
+          const countVal = countCol >= 0 ? parseFloat(row[countCol]) : NaN;
           setTarget(isNaN(targetVal) ? null : targetVal);
           setEaten(isNaN(countVal) ? null : countVal);
           found = true;
         }
 
-        // Weight data (column 8 = index 8)
-        const weightVal = parseFloat(row[8]);
-        if (!isNaN(weightVal) && weightVal > 0) {
-          const dateObj = parseDateToObj(row[0]);
-          if (dateObj && dateObj >= thirtyDaysAgo && dateObj <= now) {
+        // Weight data — include all entries that have a weight value
+        if (weightCol >= 0) {
+          const weightVal = parseFloat(row[weightCol]);
+          if (!isNaN(weightVal) && weightVal > 0) {
             weights.push({ date: rowKey, weight: weightVal });
           }
         }
@@ -245,7 +277,7 @@ export default function Vitals() {
                   {weightChange !== null && (
                     <div className="flex justify-end mt-1">
                       <span className={`text-[10px] font-medium ${weightChange <= 0 ? "text-emerald-600" : "text-red-500"}`}>
-                        {weightChange > 0 ? "+" : ""}{weightChange.toFixed(1)} kg over 30 days
+                        {weightChange > 0 ? "+" : ""}{weightChange.toFixed(1)} kg
                       </span>
                     </div>
                   )}
