@@ -22,6 +22,8 @@ export default function Timebox() {
   const [editText, setEditText] = useState("");
   const [reorderingId, setReorderingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement | null>(null);
+  const editInitialised = useRef(false);
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const isExternalDrag = useRef(false);
@@ -187,6 +189,7 @@ export default function Timebox() {
   };
 
   const startEditing = (item: TimeboxItem) => {
+    editInitialised.current = false;
     setEditingId(item.id);
     setEditText(item.text);
     setReorderingId(null);
@@ -437,7 +440,9 @@ export default function Timebox() {
               {editingId === item.id ? (
                 <input
                   ref={(el) => {
-                    if (el) {
+                    editInputRef.current = el;
+                    if (el && !editInitialised.current) {
+                      editInitialised.current = true;
                       el.focus();
                       el.setSelectionRange(0, 0);
                     }
