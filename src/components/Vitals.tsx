@@ -43,10 +43,10 @@ function formatShortDate(dateStr: string): string {
 function WeightChart({ data }: { data: WeightEntry[] }) {
   if (data.length < 2) return <p className="text-sm text-black/40">Not enough data</p>;
 
-  const W = 280;
-  const H = 120;
-  const PAD_X = 30;
-  const PAD_Y = 15;
+  const W = 300;
+  const H = 160;
+  const PAD_X = 32;
+  const PAD_Y = 20;
   const chartW = W - PAD_X * 2;
   const chartH = H - PAD_Y * 2;
 
@@ -70,7 +70,7 @@ function WeightChart({ data }: { data: WeightEntry[] }) {
   const xIndices = [0, Math.floor(data.length / 2), data.length - 1];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minHeight: 140 }} preserveAspectRatio="xMidYMid meet">
       {/* Grid lines */}
       {yLabels.map((val) => {
         const y = PAD_Y + chartH - ((val - minW) / range) * chartH;
@@ -240,21 +240,15 @@ export default function Vitals() {
               {weightData.length < 2 ? (
                 <p className="text-sm text-black/40">Not enough weight data yet</p>
               ) : (
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-baseline gap-3">
-                    {currentWeight && (
-                      <span className="text-2xl font-light tabular-nums text-black">
-                        {currentWeight.toFixed(1)}
-                        <span className="text-sm text-black/30 ml-1">kg</span>
-                      </span>
-                    )}
-                    {weightChange !== null && (
-                      <span className={`text-xs font-medium ${weightChange <= 0 ? "text-emerald-600" : "text-red-500"}`}>
-                        {weightChange > 0 ? "+" : ""}{weightChange.toFixed(1)} kg
-                      </span>
-                    )}
-                  </div>
+                <div className="flex flex-col">
                   <WeightChart data={weightData} />
+                  {weightChange !== null && (
+                    <div className="flex justify-end mt-1">
+                      <span className={`text-[10px] font-medium ${weightChange <= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                        {weightChange > 0 ? "+" : ""}{weightChange.toFixed(1)} kg over 30 days
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
