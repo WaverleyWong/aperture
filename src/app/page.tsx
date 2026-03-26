@@ -1,7 +1,7 @@
 import TodoList from "@/components/TodoList";
 import Timebox from "@/components/Timebox";
 import MonthlyFinance from "@/components/MonthlyFinance";
-import CalorieTracker from "@/components/CalorieTracker";
+import Vitals from "@/components/Vitals";
 import TodaysActivities from "@/components/TodaysActivities";
 import Fitness from "@/components/Fitness";
 import Digest from "@/components/Digest";
@@ -30,11 +30,11 @@ export default function Home() {
 
           {/* Columns 3-4 */}
           <div className="col-span-2 flex flex-col gap-5">
-            {/* Row A: Activities + Calorie/Finance */}
+            {/* Row A: Activities + Vitals/Finance */}
             <div className="grid grid-cols-2 gap-5">
               <TodaysActivities />
               <div className="flex flex-col gap-5">
-                <CalorieTracker />
+                <Vitals />
                 <MonthlyFinance />
               </div>
             </div>
@@ -49,7 +49,7 @@ export default function Home() {
 
         {/* ── Mobile layout (<768px) ── */}
         <div className="md:hidden flex flex-col gap-4">
-          {/* Swipeable top panels: To-Do (default) / Timebox */}
+          {/* Swipeable top panels: Timebox (default) / To-Do */}
           <MobileSwipePanel
             defaultIndex={0}
             panels={[
@@ -62,7 +62,7 @@ export default function Home() {
           <TodaysActivities />
           <Digest />
           <BlokMetrics />
-          <CalorieTracker />
+          <Vitals />
           <MonthlyFinance />
         </div>
 
