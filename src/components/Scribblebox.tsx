@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 const STATE_KEY = "scribblebox";
 const MIN_W = 240;
 const MIN_H = 180;
+const UNDO_DURATION = 15_000;
 
 const placeholders = [
   "What're you thinking?",
@@ -59,6 +60,10 @@ export default function Scribblebox() {
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [text, setText] = useState("");
   const [loaded, setLoaded] = useState(false);
+
+  // Undo state
+  const [undoText, setUndoText] = useState<string | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [size, setSize] = useState({ w: 320, h: 260 });
@@ -115,9 +120,41 @@ export default function Scribblebox() {
   }, [fullscreenOpen]);
 
   const handleClear = () => {
+    // Stash text for undo
+    setUndoText(text);
     setText("");
     fetch("/api/state?key=" + STATE_KEY, { method: "DELETE" }).catch(() => {});
+
+    // Auto-expire undo after 15 seconds
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => {
+      setUndoText(null);
+    }, UNDO_DURATION);
   };
+
+  const handleUndo = () => {
+    if (undoText !== null) {
+      setText(undoText);
+      setUndoText(null);
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+    }
+  };
+
+  const dismissUndo = () => {
+    setUndoText(null);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+  };
+
+  // Clear button component — used in both popup and fullscreen
+  const ClearButton = () =>
+    text.length > 0 ? (
+      <button
+        onClick={handleClear}
+        className="text-[10px] uppercase tracking-wider font-semibold text-red-500 border border-red-400 rounded-md px-2.5 py-1 hover:bg-red-50 transition-colors"
+      >
+        Clear
+      </button>
+    ) : null;
 
   // Start drag
   const onDragStart = useCallback(
@@ -200,6 +237,26 @@ export default function Scribblebox() {
 
   return (
     <>
+      {/* ── Undo toast ── */}
+      {undoText !== null && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 bg-black/85 text-white rounded-xl px-4 py-3 shadow-lg backdrop-blur-sm">
+          <span className="text-sm">Scribblebox cleared</span>
+          <button
+            onClick={handleUndo}
+            className="text-sm font-semibold text-cerulean hover:text-cerulean/80 transition-colors"
+          >
+            Undo
+          </button>
+          <button
+            onClick={dismissUndo}
+            className="text-white/40 hover:text-white/70 transition-colors text-xs ml-1"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ── Taskbar: fixed bottom-center tab ── */}
       {!fullscreenOpen && (
         <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 flex items-end">
@@ -256,14 +313,7 @@ export default function Scribblebox() {
               Scribblebox
             </h2>
             <div className="flex items-center gap-2">
-              {text.length > 0 && (
-                <button
-                  onClick={handleClear}
-                  className="text-[10px] uppercase tracking-wider text-black/30 hover:text-red-500 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
+              <ClearButton />
               <button
                 onClick={() => setPopupOpen(false)}
                 className="text-black/30 hover:text-black/60 transition-colors text-sm leading-none"
@@ -288,38 +338,30 @@ export default function Scribblebox() {
       {fullscreenOpen && (
         <div className="fixed inset-0 z-[60] flex flex-col bg-[#FAF5EC]">
           {/* Header */}
-          <div className="flex items-center justify-between px-10 py-6 shrink-0">
+          <div className="flex items-center justify-between px-6 md:px-10 py-6 shrink-0">
             <h1 className="text-sm font-semibold uppercase tracking-[0.18em] text-forest">
               Scribblebox
             </h1>
-            <div className="flex items-center gap-4">
-              {text.length > 0 && (
-                <button
-                  onClick={handleClear}
-                  className="text-[10px] uppercase tracking-wider text-black/30 hover:text-red-500 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
+            <div className="flex items-center gap-3">
+              <ClearButton />
               <button
                 onClick={() => setFullscreenOpen(false)}
-                className="flex items-center gap-1.5 text-black/30 hover:text-black/60 transition-colors"
+                className="text-black/30 hover:text-black/60 transition-colors"
                 aria-label="Close full-screen"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-                <span className="text-[10px] uppercase tracking-wider font-medium">Close</span>
               </button>
             </div>
           </div>
 
           {/* Divider */}
-          <div className="mx-10 border-t border-forest/[0.08]" />
+          <div className="mx-6 md:mx-10 border-t border-forest/[0.08]" />
 
           {/* Writing area */}
-          <div className="flex-1 flex justify-center overflow-hidden px-10 py-8">
+          <div className="flex-1 flex justify-center overflow-hidden px-6 md:px-10 py-8">
             <textarea
               ref={fullscreenTextareaRef}
               value={text}
