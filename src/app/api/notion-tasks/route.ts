@@ -58,15 +58,22 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { pageId, done } = await request.json();
+    const body = await request.json();
+    const { pageId } = body;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const properties: Record<string, any> = {};
+
+    if ("done" in body) {
+      properties.Done = { checkbox: body.done };
+    }
+    if ("dueDate" in body) {
+      properties["Due Date"] = { date: { start: body.dueDate } };
+    }
 
     await notion.pages.update({
       page_id: pageId,
-      properties: {
-        Done: {
-          checkbox: done,
-        },
-      },
+      properties,
     });
 
     return NextResponse.json({ success: true });

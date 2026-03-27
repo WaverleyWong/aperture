@@ -20,6 +20,16 @@ type TodoItem = {
   done: boolean;
 };
 
+// Unified task type for the review screen
+type ReviewTask = {
+  id: string;
+  text: string;
+  done: boolean;
+  notionPageId?: string; // present for Notion tasks
+  source: "notion" | "manual"; // where it came from
+  action?: "done" | "move" | "drop"; // user's choice for uncompleted tasks
+};
+
 function getYesterdayISO(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
@@ -37,10 +47,11 @@ function formatDate(iso: string): string {
 
 export default function DayGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"checking" | "review" | "saving" | "ready">("checking");
-  const [timeboxEntries, setTimeboxEntries] = useState<TimeboxEntry[]>([]);
-  const [todoItems, setTodoItems] = useState<TodoItem[]>([]);
+  const [tasks, setTasks] = useState<ReviewTask[]>([]);
   const [note, setNote] = useState("");
   const [scribblebox, setScribblebox] = useState("");
+  const [originalTimebox, setOriginalTimebox] = useState<TimeboxEntry[]>([]);
+  const [originalTodos, setOriginalTodos] = useState<TodoItem[]>([]);
   const yesterdayDate = getYesterdayISO();
 
   useEffect(() => {
@@ -48,36 +59,61 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
 
     async function run() {
       try {
-        // Fetch all live state from Turso
         const stateRes = await fetch("/api/state");
         const state = await stateRes.json();
 
-        const lastReview = state.last_review ?? null;
-
-        // Check if today's review was already completed
-        if (lastReview === getTodayISO()) {
+        if (state.last_review === getTodayISO()) {
           if (!cancelled) setStatus("ready");
           return;
         }
 
-        // Load yesterday's data from live state
         const entries: TimeboxEntry[] = state.timebox ? JSON.parse(state.timebox) : [];
         const scribbleText = state.scribblebox ?? "";
 
-        // Fetch yesterday's Notion tasks
-        let tasks: TodoItem[] = [];
+        let todos: TodoItem[] = [];
         try {
           const res = await fetch(`/api/notion-tasks?date=${yesterdayDate}`);
           const data = await res.json();
-          tasks = data.tasks ?? [];
-        } catch {
-          // Continue without tasks
-        }
+          todos = data.tasks ?? [];
+        } catch { /* continue */ }
 
         if (!cancelled) {
-          setTimeboxEntries(entries);
-          setTodoItems(tasks);
+          setOriginalTimebox(entries);
+          setOriginalTodos(todos);
           setScribblebox(scribbleText);
+
+          // Build unified task list — deduplicate Notion tasks that appear in both
+          const notionIdsInTimebox = new Set(
+            entries.filter((e) => e.notionPageId).map((e) => e.notionPageId)
+          );
+
+          const reviewTasks: ReviewTask[] = [];
+
+          // Notion to-do items (not already in timebox)
+          for (const todo of todos) {
+            if (!notionIdsInTimebox.has(todo.id)) {
+              reviewTasks.push({
+                id: todo.id,
+                text: todo.label,
+                done: todo.done,
+                notionPageId: todo.id,
+                source: "notion",
+              });
+            }
+          }
+
+          // Timebox entries
+          for (const entry of entries) {
+            reviewTasks.push({
+              id: entry.id,
+              text: entry.text,
+              done: entry.checked,
+              notionPageId: entry.notionPageId,
+              source: entry.notionPageId ? "notion" : "manual",
+            });
+          }
+
+          setTasks(reviewTasks);
           setStatus("review");
         }
       } catch (err) {
@@ -90,30 +126,25 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [yesterdayDate]);
 
-  const toggleTodo = (index: number) => {
-    setTodoItems((prev) =>
-      prev.map((t, i) => (i === index ? { ...t, done: !t.done } : t))
-    );
-  };
-
-  const toggleTimebox = (index: number) => {
-    setTimeboxEntries((prev) =>
-      prev.map((t, i) => (i === index ? { ...t, checked: !t.checked } : t))
+  const setTaskAction = (id: string, action: "done" | "move" | "drop") => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        // Toggle off if same action tapped again
+        return { ...t, action: t.action === action ? undefined : action };
+      })
     );
   };
 
   const markReviewedAndClear = async () => {
-    // Mark review complete in Turso
     await fetch("/api/state", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key: "last_review", value: getTodayISO() }),
     });
 
-    // Clear timebox in Turso for the new day
+    // Clear yesterday's timebox
     await fetch("/api/state?key=timebox", { method: "DELETE" });
-
-    // Notify Timebox component to clear its in-memory state
     window.dispatchEvent(new Event("timebox-clear"));
   };
 
@@ -121,37 +152,79 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
     setStatus("saving");
 
     try {
-      // Sync any toggled tasks to Notion
-      const patchPromises: Promise<unknown>[] = [];
-      for (const todo of todoItems) {
-        patchPromises.push(
-          fetch("/api/notion-tasks", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pageId: todo.id, done: todo.done }),
-          })
-        );
-      }
-      for (const entry of timeboxEntries) {
-        if (entry.notionPageId) {
-          patchPromises.push(
-            fetch("/api/notion-tasks", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ pageId: entry.notionPageId, done: entry.checked }),
-            })
-          );
+      const promises: Promise<unknown>[] = [];
+      const manualMovesToTimebox: TimeboxEntry[] = [];
+
+      for (const task of tasks) {
+        if (task.done || task.action === "done") {
+          // Mark as done in Notion if it's a Notion task
+          if (task.notionPageId) {
+            promises.push(
+              fetch("/api/notion-tasks", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pageId: task.notionPageId, done: true }),
+              })
+            );
+          }
+        } else if (task.action === "move") {
+          if (task.notionPageId) {
+            // Update due date to today in Notion
+            promises.push(
+              fetch("/api/notion-tasks", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pageId: task.notionPageId, dueDate: getTodayISO() }),
+              })
+            );
+          } else {
+            // Manual task — add to today's timebox
+            manualMovesToTimebox.push({
+              id: crypto.randomUUID(),
+              text: task.text,
+              checked: false,
+            });
+          }
+        } else if (task.action === "drop") {
+          // Nothing to do — just don't carry it forward
+        } else {
+          // No action chosen on uncompleted task — sync current state
+          if (task.notionPageId) {
+            promises.push(
+              fetch("/api/notion-tasks", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pageId: task.notionPageId, done: task.done }),
+              })
+            );
+          }
         }
       }
-      await Promise.allSettled(patchPromises);
 
-      // Archive to database
+      await Promise.allSettled(promises);
+
+      // If there are manual tasks to move to today's timebox, save them
+      if (manualMovesToTimebox.length > 0) {
+        // Read existing timebox (in case something was already added today)
+        const stateRes = await fetch("/api/state?key=timebox");
+        const stateData = await stateRes.json();
+        const existing: TimeboxEntry[] = stateData.value ? JSON.parse(stateData.value) : [];
+        const merged = [...existing, ...manualMovesToTimebox];
+
+        await fetch("/api/state", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "timebox", value: JSON.stringify(merged) }),
+        });
+      }
+
+      // Archive to daily log
       await fetch("/api/daily-log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          timebox_entries: timeboxEntries,
-          todo_items: todoItems.map((t) => ({ label: t.label, done: t.done })),
+          timebox_entries: originalTimebox,
+          todo_items: originalTodos.map((t) => ({ label: t.label, done: t.done })),
           scribblebox,
           note,
         }),
@@ -168,16 +241,12 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
     setStatus("saving");
 
     try {
-      // Fetch current live state for archiving
-      const stateRes = await fetch("/api/state");
-      const state = await stateRes.json();
-
       await fetch("/api/daily-log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          timebox_entries: state.timebox ? JSON.parse(state.timebox) : [],
-          scribblebox: state.scribblebox || "",
+          timebox_entries: originalTimebox,
+          scribblebox,
         }),
       });
     } catch (err) {
@@ -205,94 +274,112 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Review screen
-  const hasTimebox = timeboxEntries.length > 0;
-  const hasTodos = todoItems.length > 0;
+  // Split tasks into completed and uncompleted
+  const completedTasks = tasks.filter((t) => t.done);
+  const uncompletedTasks = tasks.filter((t) => !t.done);
 
   return (
     <div className="flex items-center justify-center min-h-[60vh] px-4">
-      <div className="w-full max-w-lg rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-8 shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)]">
+      <div className="w-full max-w-lg rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-6 md:p-8 shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)]">
         <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-forest mb-1">
-          Yesterday's Review
+          Yesterday&apos;s Review
         </h2>
         <p className="text-xs text-black/40 mb-6">{formatDate(yesterdayDate)}</p>
 
-        {/* To-Do Items */}
-        {hasTodos && (
+        {/* Uncompleted tasks — need action */}
+        {uncompletedTasks.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-[11px] font-medium uppercase tracking-wider text-black/40 mb-2">
-              To-Do List
+            <h3 className="text-[11px] font-medium uppercase tracking-wider text-black/40 mb-3">
+              Unfinished
             </h3>
-            <div className="flex flex-col gap-1">
-              {todoItems.map((todo, i) => (
+            <div className="flex flex-col gap-2">
+              {uncompletedTasks.map((task) => (
                 <div
-                  key={todo.id}
-                  className="flex items-center gap-3 py-1.5 px-1 rounded-lg hover:bg-forest/5 transition-colors"
+                  key={task.id}
+                  className="rounded-xl border border-forest/[0.06] bg-forest/[0.02] px-3 py-2.5"
                 >
-                  <button
-                    onClick={() => toggleTodo(i)}
-                    className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-                      todo.done
-                        ? "bg-cerulean border-cerulean"
-                        : "border-forest/30 hover:border-forest/50"
-                    }`}
-                  >
-                    {todo.done && (
-                      <svg width="8" height="6" viewBox="0 0 10 8" fill="none">
-                        <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </button>
-                  <span className={`text-sm leading-snug ${todo.done ? "line-through text-black/30" : "text-black"}`}>
-                    {todo.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Timebox Entries */}
-        {hasTimebox && (
-          <div className="mb-6">
-            <h3 className="text-[11px] font-medium uppercase tracking-wider text-black/40 mb-2">
-              Timebox
-            </h3>
-            <div className="flex flex-col gap-1">
-              {timeboxEntries.map((entry, i) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center gap-3 py-1.5 px-1 rounded-lg hover:bg-forest/5 transition-colors"
-                >
-                  <button
-                    onClick={() => toggleTimebox(i)}
-                    className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-                      entry.checked
-                        ? "bg-cerulean border-cerulean"
-                        : "border-forest/30 hover:border-forest/50"
-                    }`}
-                  >
-                    {entry.checked && (
-                      <svg width="8" height="6" viewBox="0 0 10 8" fill="none">
-                        <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </button>
-                  <span className={`text-sm leading-snug ${entry.checked ? "line-through text-black/30" : "text-black"}`}>
-                    {entry.text}
-                  </span>
-                  {entry.notionPageId && (
-                    <span className="text-[10px] text-black/20 select-none" title="Synced with Notion">
-                      ●
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm text-black flex-1">{task.text}</span>
+                    <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
+                      task.source === "notion"
+                        ? "bg-cerulean/10 text-cerulean"
+                        : "bg-forest/10 text-forest"
+                    }`}>
+                      {task.source === "notion" ? "Notion" : "Manual"}
                     </span>
-                  )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setTaskAction(task.id, "done")}
+                      className={`flex-1 text-[11px] font-medium py-1.5 rounded-lg border transition-colors ${
+                        task.action === "done"
+                          ? "bg-cerulean text-white border-cerulean"
+                          : "text-cerulean border-cerulean/30 hover:bg-cerulean/5"
+                      }`}
+                    >
+                      Done
+                    </button>
+                    <button
+                      onClick={() => setTaskAction(task.id, "move")}
+                      className={`flex-1 text-[11px] font-medium py-1.5 rounded-lg border transition-colors ${
+                        task.action === "move"
+                          ? "bg-forest text-white border-forest"
+                          : "text-forest border-forest/30 hover:bg-forest/5"
+                      }`}
+                    >
+                      Move to Today
+                    </button>
+                    <button
+                      onClick={() => setTaskAction(task.id, "drop")}
+                      className={`flex-1 text-[11px] font-medium py-1.5 rounded-lg border transition-colors ${
+                        task.action === "drop"
+                          ? "bg-red-500 text-white border-red-500"
+                          : "text-red-400 border-red-300/30 hover:bg-red-50"
+                      }`}
+                    >
+                      Drop
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {!hasTimebox && !hasTodos && (
+        {/* Completed tasks — just listed */}
+        {completedTasks.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-[11px] font-medium uppercase tracking-wider text-black/40 mb-2">
+              Completed
+            </h3>
+            <div className="flex flex-col gap-1">
+              {completedTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center gap-3 py-1.5 px-1"
+                >
+                  <div className="w-3.5 h-3.5 rounded bg-cerulean border-cerulean flex-shrink-0 flex items-center justify-center">
+                    <svg width="8" height="6" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <span className="text-sm leading-snug line-through text-black/30 flex-1">
+                    {task.text}
+                  </span>
+                  <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
+                    task.source === "notion"
+                      ? "bg-cerulean/10 text-cerulean"
+                      : "bg-forest/10 text-forest"
+                  }`}>
+                    {task.source === "notion" ? "Notion" : "Manual"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tasks.length === 0 && (
           <p className="text-xs text-black/40 mb-6">No tasks from yesterday to review.</p>
         )}
 
@@ -322,7 +409,7 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
             onClick={skipReview}
             className="text-sm text-black/40 hover:text-black/60 transition-colors py-2.5 px-4"
           >
-            Skip review
+            Skip
           </button>
         </div>
       </div>
