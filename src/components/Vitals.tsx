@@ -219,7 +219,7 @@ export default function Vitals() {
   const weightChange = currentWeight && oldestWeight ? currentWeight - oldestWeight : null;
 
   return (
-    <ComponentCard title="Vitals" onRefresh={fetchData}>
+    <ComponentCard title="Vitals" className="!overflow-visible" onRefresh={fetchData}>
       {loading ? (
         <p className="text-sm text-black/40">Loading…</p>
       ) : error ? (
