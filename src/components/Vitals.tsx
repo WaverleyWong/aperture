@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import ComponentCard from "./ComponentCard";
 
 const SHEET_CSV_URL = process.env.NEXT_PUBLIC_CALORIE_CSV_URL!;
@@ -105,7 +105,7 @@ function WeightChart({ data }: { data: WeightEntry[] }) {
   const xIndices = [0, Math.floor(data.length / 2), data.length - 1];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minHeight: 160 }} overflow="visible" preserveAspectRatio="xMidYMid meet">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" preserveAspectRatio="xMidYMid meet">
       {/* Grid lines */}
       {yLabels.map((val) => {
         const y = PAD_TOP + chartH - ((val - minW) / range) * chartH;
@@ -153,7 +153,6 @@ export default function Vitals() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -214,27 +213,6 @@ export default function Vitals() {
     fetchData();
   }, [fetchData]);
 
-  // Scroll tracking
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    let ticking = false;
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        const index = Math.round(el.scrollLeft / el.clientWidth);
-        setActiveTab(index);
-        ticking = false;
-      });
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const scrollTo = (index: number) => {
-    scrollRef.current?.scrollTo({ left: scrollRef.current.clientWidth * index, behavior: "smooth" });
-  };
 
   const currentWeight = weightData.length > 0 ? weightData[weightData.length - 1].weight : null;
   const oldestWeight = weightData.length > 0 ? weightData[0].weight : null;
@@ -253,7 +231,7 @@ export default function Vitals() {
             {["Progress", "Calories"].map((label, i) => (
               <button
                 key={label}
-                onClick={() => scrollTo(i)}
+                onClick={() => setActiveTab(i)}
                 className={`text-[10px] font-semibold uppercase tracking-[0.12em] px-2.5 py-1 rounded-full transition-colors ${
                   activeTab === i
                     ? "bg-forest/10 text-forest"
@@ -265,14 +243,9 @@ export default function Vitals() {
             ))}
           </div>
 
-          {/* Swipeable panels */}
-          <div
-            ref={scrollRef}
-            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none -mx-1"
-            style={{ WebkitOverflowScrolling: "touch" }}
-          >
-            {/* Panel 1: Weight Progress */}
-            <div className="w-full flex-shrink-0 snap-center px-1">
+          {/* Tab content */}
+          {activeTab === 0 && (
+            <div>
               {weightData.length < 2 ? (
                 <p className="text-sm text-black/40">Not enough weight data yet</p>
               ) : (
@@ -288,9 +261,10 @@ export default function Vitals() {
                 </div>
               )}
             </div>
+          )}
 
-            {/* Panel 2: Calories */}
-            <div className="w-full flex-shrink-0 snap-center px-1">
+          {activeTab === 1 && (
+            <div>
               {eaten == null ? (
                 <p className="text-sm text-black/40">No entry for today yet</p>
               ) : (
@@ -304,7 +278,7 @@ export default function Vitals() {
                 </div>
               )}
             </div>
-          </div>
+          )}
         </>
       )}
     </ComponentCard>
