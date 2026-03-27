@@ -75,20 +75,24 @@ function WeightChart({ data }: { data: WeightEntry[] }) {
   if (data.length < 2) return <p className="text-sm text-black/40">Not enough data</p>;
 
   const W = 300;
-  const H = 160;
+  const H = 180;
   const PAD_X = 32;
-  const PAD_Y = 20;
+  const PAD_TOP = 15;
+  const PAD_BOTTOM = 25;
   const chartW = W - PAD_X * 2;
-  const chartH = H - PAD_Y * 2;
+  const chartH = H - PAD_TOP - PAD_BOTTOM;
 
   const weights = data.map((d) => d.weight);
-  const minW = Math.floor(Math.min(...weights) - 0.5);
-  const maxW = Math.ceil(Math.max(...weights) + 0.5);
+  const rawMin = Math.min(...weights);
+  const rawMax = Math.max(...weights);
+  // Tight padding: 0.2 kg above/below actual data
+  const minW = Math.floor((rawMin - 0.2) * 2) / 2;
+  const maxW = Math.ceil((rawMax + 0.2) * 2) / 2;
   const range = maxW - minW || 1;
 
   const points = data.map((entry, i) => {
     const x = PAD_X + (i / (data.length - 1)) * chartW;
-    const y = PAD_Y + chartH - ((entry.weight - minW) / range) * chartH;
+    const y = PAD_TOP + chartH - ((entry.weight - minW) / range) * chartH;
     return { x, y, ...entry };
   });
 
@@ -101,10 +105,10 @@ function WeightChart({ data }: { data: WeightEntry[] }) {
   const xIndices = [0, Math.floor(data.length / 2), data.length - 1];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minHeight: 140 }} preserveAspectRatio="xMidYMid meet">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minHeight: 160 }} overflow="visible" preserveAspectRatio="xMidYMid meet">
       {/* Grid lines */}
       {yLabels.map((val) => {
-        const y = PAD_Y + chartH - ((val - minW) / range) * chartH;
+        const y = PAD_TOP + chartH - ((val - minW) / range) * chartH;
         return (
           <g key={val}>
             <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="black" strokeOpacity="0.06" strokeWidth="0.5" />
@@ -120,7 +124,7 @@ function WeightChart({ data }: { data: WeightEntry[] }) {
         <text
           key={idx}
           x={points[idx].x}
-          y={H - 2}
+          y={H - 5}
           textAnchor="middle"
           fontSize="7"
           fill="black"
