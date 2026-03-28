@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface ComponentCardProps {
   title: string;
@@ -12,14 +12,13 @@ interface ComponentCardProps {
 export default function ComponentCard({ title, children, className = "", onRefresh }: ComponentCardProps) {
   const [refreshing, setRefreshing] = useState(false);
 
-  const handleTitleClick = useCallback(async () => {
+  const doRefresh = useCallback(async () => {
     if (refreshing) return;
     setRefreshing(true);
     try {
       if (onRefresh) {
         await onRefresh();
       } else {
-        // Placeholder components: just show the animation briefly
         await new Promise((r) => setTimeout(r, 600));
       }
     } finally {
@@ -27,13 +26,20 @@ export default function ComponentCard({ title, children, className = "", onRefre
     }
   }, [onRefresh, refreshing]);
 
+  // Listen for global refresh event
+  useEffect(() => {
+    const handler = () => { doRefresh(); };
+    window.addEventListener("aperture-refresh-all", handler);
+    return () => window.removeEventListener("aperture-refresh-all", handler);
+  }, [doRefresh]);
+
   return (
     <div
       className={`rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-5 flex flex-col overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)] ${className}`}
     >
       <button
         type="button"
-        onClick={handleTitleClick}
+        onClick={doRefresh}
         className="flex items-center gap-2 mb-4 text-left cursor-pointer group"
       >
         <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-forest group-hover:text-forest/70 transition-colors">

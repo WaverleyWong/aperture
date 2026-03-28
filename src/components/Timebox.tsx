@@ -30,8 +30,8 @@ export default function Timebox() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load from Turso on mount
-  useEffect(() => {
+  // Load from Turso
+  const loadFromTurso = useCallback(() => {
     fetch(`/api/state?key=${STATE_KEY}`)
       .then((r) => r.json())
       .then((data) => {
@@ -42,6 +42,16 @@ export default function Timebox() {
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
+
+  // Load on mount
+  useEffect(() => { loadFromTurso(); }, [loadFromTurso]);
+
+  // Listen for global refresh
+  useEffect(() => {
+    const handler = () => loadFromTurso();
+    window.addEventListener("aperture-refresh-all", handler);
+    return () => window.removeEventListener("aperture-refresh-all", handler);
+  }, [loadFromTurso]);
 
   // Debounced save to Turso on every change (after initial load)
   useEffect(() => {
