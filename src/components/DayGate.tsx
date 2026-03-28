@@ -203,21 +203,6 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
 
       await Promise.allSettled(promises);
 
-      // If there are manual tasks to move to today's timebox, save them
-      if (manualMovesToTimebox.length > 0) {
-        // Read existing timebox (in case something was already added today)
-        const stateRes = await fetch("/api/state?key=timebox");
-        const stateData = await stateRes.json();
-        const existing: TimeboxEntry[] = stateData.value ? JSON.parse(stateData.value) : [];
-        const merged = [...existing, ...manualMovesToTimebox];
-
-        await fetch("/api/state", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key: "timebox", value: JSON.stringify(merged) }),
-        });
-      }
-
       // Archive to daily log
       await fetch("/api/daily-log", {
         method: "POST",
@@ -229,11 +214,22 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
           note,
         }),
       });
+
+      // Clear yesterday's timebox and mark reviewed FIRST
+      await markReviewedAndClear();
+
+      // THEN save moved manual tasks to today's timebox (after the clear)
+      if (manualMovesToTimebox.length > 0) {
+        await fetch("/api/state", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "timebox", value: JSON.stringify(manualMovesToTimebox) }),
+        });
+      }
     } catch (err) {
       console.error("Save error:", err);
     }
 
-    await markReviewedAndClear();
     setStatus("ready");
   };
 
