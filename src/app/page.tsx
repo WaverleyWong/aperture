@@ -16,7 +16,7 @@ export default function Home() {
     <SkyBanner>
       <DayGate>
         {/* ── Desktop layout (>=768px) ── */}
-        <div className="hidden md:grid grid-cols-[1fr_1.5fr_1.25fr_1.25fr] gap-5 items-start">
+        <div className="hidden md:grid grid-cols-[1fr_1.5fr_1.25fr_1.25fr] gap-5 items-start anim-stagger">
           {/* Column 1 */}
           <div className="flex flex-col gap-5">
             <TodoList />
@@ -48,7 +48,7 @@ export default function Home() {
         </div>
 
         {/* ── Mobile layout (<768px) ── */}
-        <div className="md:hidden flex flex-col gap-4">
+        <div className="md:hidden flex flex-col gap-4 anim-stagger">
           {/* Swipeable top panels: Timebox (default) / To-Do */}
           <MobileSwipePanel
             defaultIndex={0}

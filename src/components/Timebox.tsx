@@ -374,7 +374,7 @@ export default function Timebox() {
   return (
     <div
       ref={cardRef}
-      className="rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-5 flex flex-col shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)]"
+      className="anim-fade-in rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-5 flex flex-col shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)]"
       onDragOver={handleContainerDragOver}
       onDragLeave={handleContainerDragLeave}
       onDrop={handleContainerDrop}
@@ -448,7 +448,7 @@ export default function Timebox() {
               {/* Checkbox */}
               <button
                 onClick={() => toggleCheck(item.id)}
-                className={`w-5 h-5 md:w-4 md:h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                className={`anim-tap w-5 h-5 md:w-4 md:h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                   item.checked
                     ? "bg-cerulean border-cerulean"
                     : "border-forest/30 hover:border-forest/50"
@@ -496,7 +496,7 @@ export default function Timebox() {
                   onDoubleClick={() => startEditing(item)}
                   className={`flex-1 text-sm leading-snug cursor-text ${
                     item.checked
-                      ? "line-through text-black/30"
+                      ? "anim-strike text-black/30"
                       : "text-black"
                   }`}
                 >

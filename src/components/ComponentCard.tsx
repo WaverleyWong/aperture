@@ -6,10 +6,12 @@ interface ComponentCardProps {
   title: string;
   children: React.ReactNode;
   className?: string;
+  /** Animation stagger index — controls fade-in delay */
+  index?: number;
   onRefresh?: () => Promise<void> | void;
 }
 
-export default function ComponentCard({ title, children, className = "", onRefresh }: ComponentCardProps) {
+export default function ComponentCard({ title, children, className = "", index = 0, onRefresh }: ComponentCardProps) {
   const [refreshing, setRefreshing] = useState(false);
 
   const doRefresh = useCallback(async () => {
@@ -35,12 +37,13 @@ export default function ComponentCard({ title, children, className = "", onRefre
 
   return (
     <div
-      className={`rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-5 flex flex-col overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)] ${className}`}
+      className={`anim-fade-in rounded-3xl border border-forest/10 bg-white/90 backdrop-blur-md p-5 flex flex-col overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.04)] ${className}`}
+      style={{ animationDelay: `${index * 60}ms` }}
     >
       <button
         type="button"
         onClick={doRefresh}
-        className="flex items-center gap-2 mb-4 text-left cursor-pointer group"
+        className="anim-tap flex items-center gap-2 mb-4 text-left cursor-pointer group"
       >
         <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-forest group-hover:text-forest/70 transition-colors">
           {title}

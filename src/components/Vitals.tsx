@@ -245,7 +245,7 @@ export default function Vitals() {
 
           {/* Tab content */}
           {activeTab === 0 && (
-            <div>
+            <div key="progress" className="anim-fade">
               {weightData.length < 2 ? (
                 <p className="text-sm text-black/40">Not enough weight data yet</p>
               ) : (
@@ -264,7 +264,7 @@ export default function Vitals() {
           )}
 
           {activeTab === 1 && (
-            <div>
+            <div key="calories" className="anim-fade">
               {eaten == null ? (
                 <p className="text-sm text-black/40">No entry for today yet</p>
               ) : (

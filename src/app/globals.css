@@ -52,6 +52,83 @@ body {
   }
 }
 
+/* ── Animations ── */
+
+/* Fade-in-up for staggered component loading */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.anim-fade-in {
+  animation: fadeInUp 280ms ease-out both;
+}
+/* Stagger children in grid/flex layouts */
+.anim-stagger > *:nth-child(1) .anim-fade-in,
+.anim-stagger > :nth-child(1) > .anim-fade-in { animation-delay: 0ms; }
+.anim-stagger > *:nth-child(2) .anim-fade-in,
+.anim-stagger > :nth-child(2) > .anim-fade-in { animation-delay: 60ms; }
+.anim-stagger > *:nth-child(3) .anim-fade-in,
+.anim-stagger > :nth-child(3) > .anim-fade-in { animation-delay: 120ms; }
+.anim-stagger > *:nth-child(4) .anim-fade-in,
+.anim-stagger > :nth-child(4) > .anim-fade-in { animation-delay: 180ms; }
+.anim-stagger > *:nth-child(5) .anim-fade-in,
+.anim-stagger > :nth-child(5) > .anim-fade-in { animation-delay: 240ms; }
+.anim-stagger > *:nth-child(6) .anim-fade-in,
+.anim-stagger > :nth-child(6) > .anim-fade-in { animation-delay: 300ms; }
+
+/* Hand-drawn strikethrough that draws across */
+@keyframes strikethrough {
+  from { width: 0; }
+  to { width: 100%; }
+}
+.anim-strike {
+  position: relative;
+}
+.anim-strike::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 1.5px;
+  background: currentColor;
+  opacity: 0.4;
+  border-radius: 1px;
+  animation: strikethrough 250ms ease-out forwards;
+}
+
+/* Button tap pulse */
+.anim-tap {
+  transition: transform 120ms ease;
+}
+.anim-tap:active {
+  transform: scale(0.95);
+}
+
+/* Tab content slide */
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.anim-slide-left {
+  animation: slideInLeft 200ms ease-out both;
+}
+.anim-slide-right {
+  animation: slideInRight 200ms ease-out both;
+}
+
+/* Generic fade for tab switches */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.anim-fade {
+  animation: fadeIn 200ms ease-out both;
+}
+
 /* Drag styling */
 .dragging {
   opacity: 0.5;

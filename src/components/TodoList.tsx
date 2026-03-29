@@ -140,7 +140,7 @@ export default function TodoList() {
             >
               <button
                 onClick={() => toggleTask(i)}
-                className={`w-5 h-5 md:w-3.5 md:h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                className={`anim-tap w-5 h-5 md:w-3.5 md:h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                   task.done
                     ? "bg-cerulean border-cerulean"
                     : "border-forest/30 hover:border-forest/50"
@@ -160,7 +160,7 @@ export default function TodoList() {
               </button>
               <span
                 className={`flex-1 text-sm leading-snug ${
-                  task.done ? "line-through text-black/30" : "text-black"
+                  task.done ? "anim-strike text-black/30" : "text-black"
                 }`}
               >
                 {task.label}
@@ -169,7 +169,7 @@ export default function TodoList() {
               {!task.done && (
                 <button
                   onClick={() => sendToTimebox(task)}
-                  className="md:opacity-0 md:group-hover:opacity-100 text-forest/40 hover:text-cerulean transition-all p-1"
+                  className="anim-tap md:opacity-0 md:group-hover:opacity-100 text-forest/40 hover:text-cerulean transition-all p-1"
                   aria-label="Send to Timebox"
                   title="Send to Timebox"
                 >

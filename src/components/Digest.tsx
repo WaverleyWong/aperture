@@ -332,13 +332,15 @@ export default function Digest() {
 
       {/* Tab content */}
       {activeTab === "personal" ? (
-        <DigestContent
-          data={personalData}
-          loading={personalLoading}
-          error={personalError}
-        />
+        <div key="personal" className="anim-fade">
+          <DigestContent
+            data={personalData}
+            loading={personalLoading}
+            error={personalError}
+          />
+        </div>
       ) : (
-        <div className="flex flex-col">
+        <div key="work" className="anim-fade flex flex-col">
           {/* Slack section */}
           <div>
             <div className="flex items-center gap-1.5 mb-2">
