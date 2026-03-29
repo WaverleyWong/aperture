@@ -65,6 +65,21 @@ export default function Scribblebox() {
   const [undoText, setUndoText] = useState<string | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Ctrl+K to toggle fullscreen scribblebox
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setFullscreenOpen((prev) => {
+          if (prev) setPopupOpen(false);
+          return !prev;
+        });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   // Archive state
   const [archiving, setArchiving] = useState(false);
   const [archiveToast, setArchiveToast] = useState<string | null>(null);
