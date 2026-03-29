@@ -134,7 +134,7 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
       {/* Page content */}
       <div className="p-4 md:p-6 lg:p-8">
         {/* Header */}
-        <header className="mb-8 flex items-center justify-between">
+        <header className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1
               className={`text-lg font-semibold tracking-tight transition-colors duration-1000 ${
@@ -185,7 +185,7 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
         {/* Greeting */}
         {greeting && (
           <p
-            className={`-mt-5 mb-6 text-sm italic anim-fade transition-colors duration-1000 ${
+            className={`mb-4 text-sm italic anim-fade transition-colors duration-1000 ${
               dark ? "text-white/40" : "text-black/40"
             }`}
           >
