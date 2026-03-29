@@ -391,7 +391,7 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
               { color: "#EF4444", value: "terrible" },
               { color: "#F97316", value: "rough" },
               { color: "#EAB308", value: "neutral" },
-              { color: "#86EFAC", value: "good" },
+              { color: "#7DD3FC", value: "good" },
               { color: "#22C55E", value: "great" },
             ].map((m) => (
               <button
