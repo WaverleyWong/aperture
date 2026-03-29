@@ -48,6 +48,7 @@ function formatDate(iso: string): string {
 export default function DayGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"checking" | "review" | "saving" | "ready">("checking");
   const [tasks, setTasks] = useState<ReviewTask[]>([]);
+  const [mood, setMood] = useState<string>("");
   const [note, setNote] = useState("");
   const [scribblebox, setScribblebox] = useState("");
   const [originalTimebox, setOriginalTimebox] = useState<TimeboxEntry[]>([]);
@@ -212,6 +213,7 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
           todo_items: originalTodos.map((t) => ({ label: t.label, done: t.done })),
           scribblebox,
           note,
+          mood,
         }),
       });
 
@@ -378,6 +380,41 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
         {tasks.length === 0 && (
           <p className="text-xs text-black/40 mb-6">No tasks from yesterday to review.</p>
         )}
+
+        {/* Mood selector */}
+        <div className="mb-6">
+          <h3 className="text-[11px] font-medium uppercase tracking-wider text-black/40 mb-3">
+            How was yesterday?
+          </h3>
+          <div className="flex justify-center gap-4">
+            {[
+              { color: "#EF4444", value: "terrible" },
+              { color: "#F97316", value: "rough" },
+              { color: "#EAB308", value: "neutral" },
+              { color: "#86EFAC", value: "good" },
+              { color: "#22C55E", value: "great" },
+            ].map((m) => (
+              <button
+                key={m.value}
+                onClick={() => setMood(mood === m.value ? "" : m.value)}
+                className="transition-transform duration-150"
+                style={{
+                  transform: mood === m.value ? "scale(1.3)" : "scale(1)",
+                }}
+                aria-label={m.value}
+              >
+                <div
+                  className="w-8 h-8 rounded-full transition-shadow duration-150"
+                  style={{
+                    backgroundColor: m.color,
+                    boxShadow: mood === m.value ? `0 0 0 3px white, 0 0 0 5px ${m.color}` : "none",
+                    opacity: mood && mood !== m.value ? 0.3 : 1,
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Daily note */}
         <div className="mb-6">

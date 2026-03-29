@@ -23,10 +23,13 @@ export async function runMigrations() {
     )
   `);
 
-  // Add note column if upgrading from older schema
+  // Add columns if upgrading from older schema
   const columns = await db.execute("PRAGMA table_info(daily_log)");
-  const hasNote = columns.rows.some((c) => c.name === "note");
-  if (!hasNote) {
+  const colNames = new Set(columns.rows.map((c) => c.name as string));
+  if (!colNames.has("note")) {
     await db.execute("ALTER TABLE daily_log ADD COLUMN note TEXT DEFAULT ''");
+  }
+  if (!colNames.has("mood")) {
+    await db.execute("ALTER TABLE daily_log ADD COLUMN mood TEXT DEFAULT ''");
   }
 }

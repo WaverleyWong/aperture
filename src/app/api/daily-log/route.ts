@@ -98,14 +98,15 @@ export async function POST(request: Request) {
     const db = getDb();
     await db.execute({
       sql: `
-        INSERT INTO daily_log (date, timebox_entries, todo_items, calorie_count, scribblebox, note)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO daily_log (date, timebox_entries, todo_items, calorie_count, scribblebox, note, mood)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(date) DO UPDATE SET
           timebox_entries = excluded.timebox_entries,
           todo_items = excluded.todo_items,
           calorie_count = excluded.calorie_count,
           scribblebox = excluded.scribblebox,
           note = excluded.note,
+          mood = excluded.mood,
           created_at = datetime('now')
       `,
       args: [
@@ -115,6 +116,7 @@ export async function POST(request: Request) {
         calorieCount,
         body.scribblebox ?? "",
         body.note ?? "",
+        body.mood ?? "",
       ],
     });
 
