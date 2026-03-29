@@ -10,9 +10,11 @@ import Scribblebox from "@/components/Scribblebox";
 import SkyBanner from "@/components/SkyBanner";
 import DayGate from "@/components/DayGate";
 import MobileSwipePanel from "@/components/MobileSwipePanel";
+import AppShell from "@/components/AppShell";
 
 export default function Home() {
   return (
+    <AppShell>
     <SkyBanner>
       <DayGate>
         {/* ── Desktop layout (>=768px) ── */}
@@ -69,5 +71,6 @@ export default function Home() {
         <Scribblebox />
       </DayGate>
     </SkyBanner>
+    </AppShell>
   );
 }
