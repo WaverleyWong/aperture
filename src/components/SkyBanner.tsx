@@ -28,6 +28,7 @@ function refreshAll() {
 export default function SkyBanner({ children }: { children: React.ReactNode }) {
   const [hour, setHour] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [greeting, setGreeting] = useState("");
 
   // Pull-to-refresh state (mobile)
   const [pullProgress, setPullProgress] = useState(0);
@@ -41,6 +42,14 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
       setHour(new Date().getHours());
     }, 60_000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Fetch greeting (cached for the day)
+  useEffect(() => {
+    fetch("/api/greeting")
+      .then((r) => r.json())
+      .then((data) => { if (data.greeting) setGreeting(data.greeting); })
+      .catch(() => {});
   }, []);
 
   const bgStyle = hour !== null ? getBackgroundStyle(hour) : { backgroundColor: "#E6FDFF" };
@@ -172,6 +181,17 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
             })}
           </span>
         </header>
+
+        {/* Greeting */}
+        {greeting && (
+          <p
+            className={`-mt-5 mb-6 text-sm italic anim-fade transition-colors duration-1000 ${
+              dark ? "text-white/40" : "text-black/40"
+            }`}
+          >
+            {greeting}
+          </p>
+        )}
 
         {children}
       </div>
