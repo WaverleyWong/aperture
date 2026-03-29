@@ -65,6 +65,11 @@ export default function Scribblebox() {
   const [undoText, setUndoText] = useState<string | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Archive state
+  const [archiving, setArchiving] = useState(false);
+  const [archiveToast, setArchiveToast] = useState<string | null>(null);
+  const archiveToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [size, setSize] = useState({ w: 320, h: 260 });
   const [posInitialised, setPosInitialised] = useState(false);
@@ -145,15 +150,48 @@ export default function Scribblebox() {
     if (undoTimer.current) clearTimeout(undoTimer.current);
   };
 
-  // Clear button component — used in both popup and fullscreen
-  const ClearButton = () =>
+  const handleArchive = async () => {
+    if (!text.trim() || archiving) return;
+    setArchiving(true);
+    try {
+      const res = await fetch("/api/archive-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setArchiveToast(`Archived: "${data.title}"`);
+      } else {
+        setArchiveToast("Failed to archive");
+      }
+    } catch {
+      setArchiveToast("Failed to archive");
+    } finally {
+      setArchiving(false);
+      if (archiveToastTimer.current) clearTimeout(archiveToastTimer.current);
+      archiveToastTimer.current = setTimeout(() => setArchiveToast(null), 4000);
+    }
+  };
+
+  // Action buttons — used in both popup and fullscreen
+  const ActionButtons = () =>
     text.length > 0 ? (
-      <button
-        onClick={handleClear}
-        className="text-[10px] uppercase tracking-wider font-semibold text-red-500 border border-red-400 rounded-md px-2.5 py-1 hover:bg-red-50 transition-colors"
-      >
-        Clear
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleArchive}
+          disabled={archiving}
+          className="anim-tap text-[10px] uppercase tracking-wider font-semibold text-cerulean border border-cerulean/40 rounded-md px-2.5 py-1 hover:bg-cerulean/5 transition-colors disabled:opacity-40"
+        >
+          {archiving ? "Archiving…" : "Archive"}
+        </button>
+        <button
+          onClick={handleClear}
+          className="anim-tap text-[10px] uppercase tracking-wider font-semibold text-red-500 border border-red-400 rounded-md px-2.5 py-1 hover:bg-red-50 transition-colors"
+        >
+          Clear
+        </button>
+      </div>
     ) : null;
 
   // Start drag
@@ -257,6 +295,20 @@ export default function Scribblebox() {
         </div>
       )}
 
+      {/* ── Archive toast ── */}
+      {archiveToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 bg-black/85 text-white rounded-xl px-4 py-3 shadow-lg backdrop-blur-sm anim-fade">
+          <span className="text-sm">{archiveToast}</span>
+          <button
+            onClick={() => setArchiveToast(null)}
+            className="text-white/40 hover:text-white/70 transition-colors text-xs ml-1"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ── Taskbar: fixed bottom-center tab ── */}
       {!fullscreenOpen && (
         <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 flex items-end">
@@ -313,7 +365,7 @@ export default function Scribblebox() {
               Scribblebox
             </h2>
             <div className="flex items-center gap-2">
-              <ClearButton />
+              <ActionButtons />
               <button
                 onClick={() => setPopupOpen(false)}
                 className="text-black/30 hover:text-black/60 transition-colors text-sm leading-none"
@@ -343,7 +395,7 @@ export default function Scribblebox() {
               Scribblebox
             </h1>
             <div className="flex items-center gap-3">
-              <ClearButton />
+              <ActionButtons />
               <button
                 onClick={() => setFullscreenOpen(false)}
                 className="text-black/30 hover:text-black/60 transition-colors"
