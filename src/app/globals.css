@@ -76,24 +76,15 @@ body {
 .anim-stagger > *:nth-child(6) .anim-fade-in,
 .anim-stagger > :nth-child(6) > .anim-fade-in { animation-delay: 300ms; }
 
-/* Hand-drawn strikethrough that draws across */
-@keyframes strikethrough {
-  from { width: 0; }
-  to { width: 100%; }
+/* Animated strikethrough — follows each line of wrapped text */
+@keyframes strikeAppear {
+  from { text-decoration-color: transparent; }
+  to { text-decoration-color: currentColor; }
 }
 .anim-strike {
-  position: relative;
-}
-.anim-strike::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  height: 1.5px;
-  background: currentColor;
-  opacity: 0.4;
-  border-radius: 1px;
-  animation: strikethrough 250ms ease-out forwards;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  animation: strikeAppear 250ms ease-out forwards;
 }
 
 /* Button tap pulse */
