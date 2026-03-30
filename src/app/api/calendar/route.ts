@@ -45,17 +45,22 @@ type CalendarEvent = {
 };
 
 function formatEvent(
-  event: { start?: { dateTime?: string | null; date?: string | null }; summary?: string | null },
+  event: {
+    start?: { dateTime?: string | null; date?: string | null; timeZone?: string | null };
+    summary?: string | null;
+  },
   source: "work" | "personal"
 ): CalendarEvent {
   const start = event.start?.dateTime || event.start?.date || "";
   const isAllDay = !event.start?.dateTime;
+  const tz = event.start?.timeZone || "Europe/London";
   let time = "All day";
   if (!isAllDay && start) {
     time = new Date(start).toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
+      timeZone: tz,
     });
   }
   return {
@@ -85,6 +90,7 @@ async function fetchCalendarEvents(
           calendarId: cal.id!,
           timeMin,
           timeMax,
+          timeZone: "Europe/London",
           singleEvents: true,
           orderBy: "startTime",
         });
