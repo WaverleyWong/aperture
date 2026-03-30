@@ -1,6 +1,6 @@
 import TodoList from "@/components/TodoList";
 import Timebox from "@/components/Timebox";
-import MonthlyFinance from "@/components/MonthlyFinance";
+import Finances from "@/components/Finances";
 import Vitals from "@/components/Vitals";
 import TodaysActivities from "@/components/TodaysActivities";
 import Fitness from "@/components/Fitness";
@@ -37,7 +37,7 @@ export default function Home() {
               <TodaysActivities />
               <div className="flex flex-col gap-5">
                 <Vitals />
-                <MonthlyFinance />
+                <Finances />
               </div>
             </div>
 
@@ -65,7 +65,7 @@ export default function Home() {
           <Digest />
           <BlokMetrics />
           <Vitals />
-          <MonthlyFinance />
+          <Finances />
         </div>
 
         <Scribblebox />
