@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import ComponentCard from "./ComponentCard";
 
 type EmailSummary = {
@@ -28,19 +28,116 @@ type SlackDigestData = {
 
 type Tab = "personal" | "work";
 
-function EmailRow({ email }: { email: EmailSummary }) {
+const DISMISSED_KEY = "digest-dismissed";
+
+function itemKey(sender: string, subject: string): string {
+  return `${sender}::${subject}`;
+}
+
+function slackItemKey(sender: string, summary: string): string {
+  return `slack::${sender}::${summary}`;
+}
+
+// ── Swipe/dismiss wrapper ──
+
+function DismissableRow({
+  id,
+  onDismiss,
+  children,
+}: {
+  id: string;
+  onDismiss: (id: string) => void;
+  children: React.ReactNode;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const startX = useRef(0);
+  const currentX = useRef(0);
+  const swiping = useRef(false);
+
+  const THRESHOLD = 80;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+    currentX.current = 0;
+    swiping.current = true;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!swiping.current || !rowRef.current) return;
+    const dx = e.touches[0].clientX - startX.current;
+    // Only allow left swipe
+    if (dx < 0) {
+      currentX.current = dx;
+      rowRef.current.style.transform = `translateX(${dx}px)`;
+      rowRef.current.style.opacity = `${Math.max(1 + dx / 200, 0.3)}`;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!rowRef.current) return;
+    swiping.current = false;
+    if (currentX.current < -THRESHOLD) {
+      // Animate out then dismiss
+      rowRef.current.style.transition = "transform 200ms ease, opacity 200ms ease";
+      rowRef.current.style.transform = "translateX(-100%)";
+      rowRef.current.style.opacity = "0";
+      setTimeout(() => onDismiss(id), 200);
+    } else {
+      // Snap back
+      rowRef.current.style.transition = "transform 150ms ease, opacity 150ms ease";
+      rowRef.current.style.transform = "translateX(0)";
+      rowRef.current.style.opacity = "1";
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-0.5 py-1.5">
-      <div className="flex items-baseline gap-2">
-        <span className="text-xs font-medium text-black/80 shrink-0">
-          {email.sender}
-        </span>
-        <span className="text-[11px] text-black/40 truncate">
-          {email.subject}
-        </span>
+    <div className="relative overflow-hidden group">
+      <div
+        ref={rowRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ willChange: "transform" }}
+      >
+        {children}
       </div>
-      <p className="text-[11px] text-black/55 leading-snug">{email.summary}</p>
+      {/* Desktop hover X */}
+      <button
+        onClick={() => onDismiss(id)}
+        className="absolute right-0 top-1/2 -translate-y-1/2 hidden md:group-hover:flex items-center justify-center w-5 h-5 rounded-full text-black/20 hover:text-black/50 hover:bg-black/5 transition-colors"
+        aria-label="Dismiss"
+      >
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <path d="M1 1l6 6M7 1l-6 6" />
+        </svg>
+      </button>
     </div>
+  );
+}
+
+// ── Row components ──
+
+function EmailRow({
+  email,
+  onDismiss,
+}: {
+  email: EmailSummary;
+  onDismiss: (id: string) => void;
+}) {
+  return (
+    <DismissableRow id={itemKey(email.sender, email.subject)} onDismiss={onDismiss}>
+      <div className="flex flex-col gap-0.5 py-1.5 pr-6">
+        <div className="flex items-baseline gap-2">
+          <span className="text-xs font-medium text-black/80 shrink-0">
+            {email.sender}
+          </span>
+          <span className="text-[11px] text-black/40 truncate">
+            {email.subject}
+          </span>
+        </div>
+        <p className="text-[11px] text-black/55 leading-snug">{email.summary}</p>
+      </div>
+    </DismissableRow>
   );
 }
 
@@ -62,23 +159,37 @@ function SlackIcon() {
   );
 }
 
-function SlackRow({ item }: { item: SlackItem }) {
+function SlackRow({
+  item,
+  onDismiss,
+}: {
+  item: SlackItem;
+  onDismiss: (id: string) => void;
+}) {
   return (
-    <div className="flex flex-col gap-0.5 py-1.5">
-      <span className="text-xs font-medium text-black/80">{item.sender}</span>
-      <p className="text-[11px] text-black/55 leading-snug">{item.summary}</p>
-    </div>
+    <DismissableRow id={slackItemKey(item.sender, item.summary)} onDismiss={onDismiss}>
+      <div className="flex flex-col gap-0.5 py-1.5 pr-6">
+        <span className="text-xs font-medium text-black/80">{item.sender}</span>
+        <p className="text-[11px] text-black/55 leading-snug">{item.summary}</p>
+      </div>
+    </DismissableRow>
   );
 }
+
+// ── Section renderers ──
 
 function SlackSection({
   data,
   loading,
   error,
+  dismissed,
+  onDismiss,
 }: {
   data: SlackDigestData | null;
   loading: boolean;
   error: string | null;
+  dismissed: Set<string>;
+  onDismiss: (id: string) => void;
 }) {
   if (loading) {
     return (
@@ -94,10 +205,22 @@ function SlackSection({
     return <p className="text-xs text-red-400 py-2">{error}</p>;
   }
 
-  if (
-    !data ||
-    (data.needsResponse.length === 0 && data.fyi.length === 0)
-  ) {
+  if (!data) {
+    return (
+      <p className="text-xs text-black/40 italic py-2">
+        No Slack messages needing attention.
+      </p>
+    );
+  }
+
+  const needsResponse = data.needsResponse.filter(
+    (i) => !dismissed.has(slackItemKey(i.sender, i.summary))
+  );
+  const fyi = data.fyi.filter(
+    (i) => !dismissed.has(slackItemKey(i.sender, i.summary))
+  );
+
+  if (needsResponse.length === 0 && fyi.length === 0) {
     return (
       <p className="text-xs text-black/40 italic py-2">
         No Slack messages needing attention.
@@ -107,27 +230,27 @@ function SlackSection({
 
   return (
     <div className="flex flex-col gap-4">
-      {data.needsResponse.length > 0 && (
+      {needsResponse.length > 0 && (
         <div>
           <div className="text-[10px] uppercase tracking-[0.12em] text-red-500/70 font-medium mb-1">
             Needs Reply
           </div>
           <div className="divide-y divide-forest/[0.06]">
-            {data.needsResponse.map((item, i) => (
-              <SlackRow key={`slack-reply-${i}`} item={item} />
+            {needsResponse.map((item, i) => (
+              <SlackRow key={`slack-reply-${i}`} item={item} onDismiss={onDismiss} />
             ))}
           </div>
         </div>
       )}
 
-      {data.fyi.length > 0 && (
+      {fyi.length > 0 && (
         <div>
           <div className="text-[10px] uppercase tracking-[0.12em] text-black/30 font-medium mb-1">
             FYI
           </div>
           <div className="divide-y divide-forest/[0.06]">
-            {data.fyi.map((item, i) => (
-              <SlackRow key={`slack-fyi-${i}`} item={item} />
+            {fyi.map((item, i) => (
+              <SlackRow key={`slack-fyi-${i}`} item={item} onDismiss={onDismiss} />
             ))}
           </div>
         </div>
@@ -140,10 +263,18 @@ function SlackSection({
   );
 }
 
-function DigestContent({ data, loading, error }: {
+function DigestContent({
+  data,
+  loading,
+  error,
+  dismissed,
+  onDismiss,
+}: {
   data: DigestData | null;
   loading: boolean;
   error: string | null;
+  dismissed: Set<string>;
+  onDismiss: (id: string) => void;
 }) {
   if (loading) {
     return (
@@ -159,7 +290,22 @@ function DigestContent({ data, loading, error }: {
     return <p className="text-xs text-red-400 py-2">{error}</p>;
   }
 
-  if (!data || (data.needsReply.length === 0 && data.fyi.length === 0)) {
+  if (!data) {
+    return (
+      <p className="text-xs text-black/40 italic py-2">
+        No notable emails from yesterday or today.
+      </p>
+    );
+  }
+
+  const needsReply = data.needsReply.filter(
+    (e) => !dismissed.has(itemKey(e.sender, e.subject))
+  );
+  const fyi = data.fyi.filter(
+    (e) => !dismissed.has(itemKey(e.sender, e.subject))
+  );
+
+  if (needsReply.length === 0 && fyi.length === 0) {
     return (
       <p className="text-xs text-black/40 italic py-2">
         No notable emails from yesterday or today.
@@ -169,27 +315,27 @@ function DigestContent({ data, loading, error }: {
 
   return (
     <div className="flex flex-col gap-4">
-      {data.needsReply.length > 0 && (
+      {needsReply.length > 0 && (
         <div>
           <div className="text-[10px] uppercase tracking-[0.12em] text-red-500/70 font-medium mb-1">
             Needs Reply
           </div>
           <div className="divide-y divide-forest/[0.06]">
-            {data.needsReply.map((email, i) => (
-              <EmailRow key={`reply-${i}`} email={email} />
+            {needsReply.map((email, i) => (
+              <EmailRow key={`reply-${i}`} email={email} onDismiss={onDismiss} />
             ))}
           </div>
         </div>
       )}
 
-      {data.fyi.length > 0 && (
+      {fyi.length > 0 && (
         <div>
           <div className="text-[10px] uppercase tracking-[0.12em] text-black/30 font-medium mb-1">
             FYI
           </div>
           <div className="divide-y divide-forest/[0.06]">
-            {data.fyi.map((email, i) => (
-              <EmailRow key={`fyi-${i}`} email={email} />
+            {fyi.map((email, i) => (
+              <EmailRow key={`fyi-${i}`} email={email} onDismiss={onDismiss} />
             ))}
           </div>
         </div>
@@ -202,8 +348,12 @@ function DigestContent({ data, loading, error }: {
   );
 }
 
+// ── Main component ──
+
 export default function Digest() {
   const [activeTab, setActiveTab] = useState<Tab>("personal");
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissedLoaded, setDismissedLoaded] = useState(false);
 
   const [personalData, setPersonalData] = useState<DigestData | null>(null);
   const [personalLoading, setPersonalLoading] = useState(false);
@@ -219,6 +369,43 @@ export default function Digest() {
   const [slackLoading, setSlackLoading] = useState(false);
   const [slackError, setSlackError] = useState<string | null>(null);
   const [slackFetched, setSlackFetched] = useState(false);
+
+  // Load dismissed set from Turso on mount
+  useEffect(() => {
+    fetch(`/api/state?key=${DISMISSED_KEY}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.value) {
+          try {
+            const arr: string[] = JSON.parse(data.value);
+            setDismissed(new Set(arr));
+          } catch { /* corrupt, start fresh */ }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setDismissedLoaded(true));
+  }, []);
+
+  // Persist dismissed set to Turso
+  const saveDismissed = useCallback((next: Set<string>) => {
+    fetch("/api/state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: DISMISSED_KEY, value: JSON.stringify([...next]) }),
+    }).catch(() => {});
+  }, []);
+
+  const handleDismiss = useCallback(
+    (id: string) => {
+      setDismissed((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        saveDismissed(next);
+        return next;
+      });
+    },
+    [saveDismissed]
+  );
 
   const fetchPersonal = useCallback(async () => {
     setPersonalLoading(true);
@@ -337,6 +524,8 @@ export default function Digest() {
             data={personalData}
             loading={personalLoading}
             error={personalError}
+            dismissed={dismissed}
+            onDismiss={handleDismiss}
           />
         </div>
       ) : (
@@ -353,6 +542,8 @@ export default function Digest() {
               data={slackData}
               loading={slackLoading}
               error={slackError}
+              dismissed={dismissed}
+              onDismiss={handleDismiss}
             />
           </div>
 
@@ -374,6 +565,8 @@ export default function Digest() {
               data={workData}
               loading={workLoading}
               error={workError}
+              dismissed={dismissed}
+              onDismiss={handleDismiss}
             />
           </div>
         </div>
