@@ -38,13 +38,12 @@ export async function GET() {
     yesterday.setDate(yesterday.getDate() - 1);
     yesterday.setHours(0, 0, 0, 0);
     const afterEpoch = Math.floor(yesterday.getTime() / 1000);
+    // Fetch a larger pool of recent emails to ensure important ones aren't buried
     const query = `in:inbox after:${afterEpoch}`;
-
-    // Fetch message IDs (max 20)
     const listRes = await gmail.users.messages.list({
       userId: "me",
       q: query,
-      maxResults: 20,
+      maxResults: 50,
     });
 
     const messageIds = (listRes.data.messages || []).map((m) => m.id!);
@@ -86,17 +85,29 @@ export async function GET() {
 
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         {
           role: "user",
-          content: `You are a personal assistant triaging emails for someone's personal inbox. Categorise these emails into two groups:
+          content: `You are a personal assistant triaging emails for Waverley's personal inbox. Categorise these emails into two groups:
 
-1. "needsReply" — emails that appear to require a response or action from the recipient. Include sender name (just the person's name, not email), subject, and a one-line summary of what they need.
+1. "needsReply" — emails that require a response, action, or attention. This includes:
+   - Messages from real people (not automated systems)
+   - Interview requests, scheduling, or cancellations
+   - Property viewing confirmations, cancellations, or agent messages
+   - Anything with a deadline, appointment change, or required decision
 
-2. "fyi" — notable emails worth knowing about but no action needed. Same format.
+2. "fyi" — notable emails worth knowing about but no action needed. This includes:
+   - Property match alerts and new listings
+   - Newsletters with genuinely interesting content
+   - Order/delivery updates
+   - App/service updates relevant to things Waverley uses
 
-Skip obvious spam, marketing newsletters, and automated notifications unless they contain something genuinely important (e.g. property viewings, interview invitations, delivery issues).
+Only skip: pure marketing spam, promotional offers, and generic automated emails with no personal relevance.
+
+When in doubt, INCLUDE the email rather than skip it. Err on the side of surfacing too much rather than too little.
+
+For sender names: use the person's name (not email address). For automated senders, use the platform name (e.g. "Rightmove", "Zoopla").
 
 Respond ONLY with valid JSON in this exact format, no other text:
 {"needsReply": [{"sender": "Name", "subject": "Subject", "summary": "What they need"}], "fyi": [{"sender": "Name", "subject": "Subject", "summary": "One line summary"}]}
