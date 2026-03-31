@@ -64,7 +64,10 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
         const state = await stateRes.json();
 
         if (state.last_review === getTodayISO()) {
-          if (!cancelled) setStatus("ready");
+          if (!cancelled) {
+            setStatus("ready");
+            window.dispatchEvent(new Event("daygate-complete"));
+          }
           return;
         }
 
@@ -233,6 +236,7 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
     }
 
     setStatus("ready");
+    window.dispatchEvent(new Event("daygate-complete"));
   };
 
   const skipReview = async () => {
@@ -253,6 +257,7 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
 
     await markReviewedAndClear();
     setStatus("ready");
+    window.dispatchEvent(new Event("daygate-complete"));
   };
 
   if (status === "ready") return <>{children}</>;

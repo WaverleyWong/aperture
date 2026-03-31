@@ -10,24 +10,28 @@ function getTodayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await runMigrations();
     const db = getDb();
     const today = getTodayISO();
+    const { searchParams } = new URL(request.url);
+    const skipCache = searchParams.get("refresh") === "1";
 
-    // Check cache first
-    const cached = await db.execute({
-      sql: "SELECT value FROM live_state WHERE key = ?",
-      args: ["greeting"],
-    });
-    if (cached.rows.length > 0) {
-      try {
-        const data = JSON.parse(cached.rows[0].value as string);
-        if (data.date === today) {
-          return NextResponse.json({ greeting: data.greeting });
-        }
-      } catch { /* stale or corrupt, regenerate */ }
+    // Check cache first (unless refresh requested)
+    if (!skipCache) {
+      const cached = await db.execute({
+        sql: "SELECT value FROM live_state WHERE key = ?",
+        args: ["greeting"],
+      });
+      if (cached.rows.length > 0) {
+        try {
+          const data = JSON.parse(cached.rows[0].value as string);
+          if (data.date === today) {
+            return NextResponse.json({ greeting: data.greeting });
+          }
+        } catch { /* stale or corrupt, regenerate */ }
+      }
     }
 
     // Gather context from APIs + database in parallel

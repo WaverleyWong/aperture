@@ -44,12 +44,21 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch greeting (cached for the day)
+  // Fetch greeting only after DayGate completes (so tasks/calendar data is ready)
+  // First load after already-reviewed day: use cache. After fresh review: regenerate.
   useEffect(() => {
-    fetch("/api/greeting")
-      .then((r) => r.json())
-      .then((data) => { if (data.greeting) setGreeting(data.greeting); })
-      .catch(() => {});
+    let hasFetched = false;
+    const fetchGreeting = () => {
+      // If we already fetched (cached), this is a fresh DayGate review — regenerate
+      const refresh = hasFetched ? "1" : "0";
+      hasFetched = true;
+      fetch(`/api/greeting?refresh=${refresh}`)
+        .then((r) => r.json())
+        .then((data) => { if (data.greeting) setGreeting(data.greeting); })
+        .catch(() => {});
+    };
+    window.addEventListener("daygate-complete", fetchGreeting);
+    return () => window.removeEventListener("daygate-complete", fetchGreeting);
   }, []);
 
   const bgStyle = hour !== null ? getBackgroundStyle(hour) : { backgroundColor: "#E6FDFF" };
