@@ -49,13 +49,13 @@ export async function GET(request: Request) {
     let calendarSummary = "No calendar data.";
     if (calendarRes.status === "fulfilled" && calendarRes.value.ok) {
       const cal = await calendarRes.value.json();
-      const events = [...(cal.personal || []), ...(cal.work || [])];
+      const events = cal.events || [];
       if (events.length === 0) {
         calendarSummary = "No events scheduled today — completely clear calendar.";
       } else {
         calendarSummary = `Today's calendar (${events.length} events):\n` +
-          events.map((e: { time?: string; summary?: string }) =>
-            `- ${e.time || "All day"}: ${e.summary || "Untitled"}`
+          events.map((e: { time?: string; label?: string; source?: string }) =>
+            `- ${e.time || "All day"}: ${e.label || "Untitled"} (${e.source || "unknown"})`
           ).join("\n");
       }
     }
@@ -134,6 +134,7 @@ Rules:
 - Surface genuine insight when you spot it — patterns in mood, an unusually packed/empty day, a contrast worth noting.
 - Don't force humour if the data doesn't warrant it. Practical > clever.
 - No emojis. No "Good morning". No generic motivational fluff.
+- NEVER suggest resting, breathing, slowing down, or taking it easy. Always support momentum.
 - If recent reflections show a pattern (e.g. declining mood, repeated "busy" notes), acknowledge it dryly.
 
 Context:
