@@ -39,7 +39,7 @@ export async function GET() {
     yesterday.setHours(0, 0, 0, 0);
     const afterEpoch = Math.floor(yesterday.getTime() / 1000);
     // Fetch a larger pool of recent emails to ensure important ones aren't buried
-    const query = `in:inbox after:${afterEpoch}`;
+    const query = `in:inbox after:${afterEpoch} -from:slack.com -from:slackbot`;
     const listRes = await gmail.users.messages.list({
       userId: "me",
       q: query,
