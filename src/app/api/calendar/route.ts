@@ -106,13 +106,20 @@ async function fetchCalendarEvents(
 
 export async function GET() {
   try {
+    // Get today's date in London and build proper RFC3339 boundaries
     const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
+    const londonDate = now.toLocaleDateString("en-CA", { timeZone: "Europe/London" }); // YYYY-MM-DD
+    // Compute London's UTC offset by comparing formatted times
+    const utcHour = now.getUTCHours();
+    const londonHour = parseInt(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Europe/London" }).format(now), 10);
+    let offsetHours = londonHour - utcHour;
+    if (offsetHours > 12) offsetHours -= 24;
+    if (offsetHours < -12) offsetHours += 24;
+    const sign = offsetHours >= 0 ? "+" : "-";
+    const offsetStr = `${sign}${String(Math.abs(offsetHours)).padStart(2, "0")}:00`;
 
-    const timeMin = startOfDay.toISOString();
-    const timeMax = endOfDay.toISOString();
+    const timeMin = `${londonDate}T00:00:00${offsetStr}`;
+    const timeMax = `${londonDate}T23:59:59${offsetStr}`;
 
     // Fetch work and personal calendars in parallel
     const [workEvents, personalEvents] = await Promise.all([

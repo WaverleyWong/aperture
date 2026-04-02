@@ -113,19 +113,7 @@ export async function GET() {
     const text = await csvRes.text();
     const rows = parseCSV(text);
 
-    // Month verification: Row 4 (index 3), col C (index 2)
-    const sheetMonth = (rows[3]?.[2] || "").toLowerCase();
-    const currentMonth = new Date().toLocaleString("en-GB", { month: "long" }).toLowerCase();
-
-    if (sheetMonth !== currentMonth) {
-      return NextResponse.json({
-        match: false,
-        sheetMonth: rows[3]?.[2] || "unknown",
-        weekly: null,
-        monthly: null,
-        subscriptions: null,
-      });
-    }
+    // Read targets from sheet regardless of which month label it shows
 
     // ── Budget targets from Google Sheets ──
 
@@ -289,7 +277,7 @@ export async function GET() {
       charged: subCharges[name],
     }));
 
-    return NextResponse.json({ match: true, weekly, monthly, subscriptions });
+    return NextResponse.json({ weekly, monthly, subscriptions });
   } catch (error: unknown) {
     console.error("Finance API error:", error);
     return NextResponse.json(
