@@ -49,12 +49,26 @@ function DismissableRow({
   onDismiss: (id: string) => void;
   children: React.ReactNode;
 }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const startX = useRef(0);
   const currentX = useRef(0);
   const swiping = useRef(false);
 
   const THRESHOLD = 80;
+
+  const collapseAndDismiss = () => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) { onDismiss(id); return; }
+    // Collapse height
+    wrapper.style.height = `${wrapper.offsetHeight}px`;
+    // Force reflow
+    wrapper.offsetHeight;
+    wrapper.style.transition = "height 200ms ease, margin 200ms ease, padding 200ms ease";
+    wrapper.style.height = "0";
+    wrapper.style.overflow = "hidden";
+    setTimeout(() => onDismiss(id), 200);
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX;
@@ -65,7 +79,6 @@ function DismissableRow({
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!swiping.current || !rowRef.current) return;
     const dx = e.touches[0].clientX - startX.current;
-    // Only allow left swipe
     if (dx < 0) {
       currentX.current = dx;
       rowRef.current.style.transform = `translateX(${dx}px)`;
@@ -77,21 +90,29 @@ function DismissableRow({
     if (!rowRef.current) return;
     swiping.current = false;
     if (currentX.current < -THRESHOLD) {
-      // Animate out then dismiss
-      rowRef.current.style.transition = "transform 200ms ease, opacity 200ms ease";
+      // Slide out, then collapse height, then dismiss
+      rowRef.current.style.transition = "transform 150ms ease, opacity 150ms ease";
       rowRef.current.style.transform = "translateX(-100%)";
       rowRef.current.style.opacity = "0";
-      setTimeout(() => onDismiss(id), 200);
+      setTimeout(collapseAndDismiss, 150);
     } else {
-      // Snap back
       rowRef.current.style.transition = "transform 150ms ease, opacity 150ms ease";
       rowRef.current.style.transform = "translateX(0)";
       rowRef.current.style.opacity = "1";
     }
   };
 
+  const handleDesktopDismiss = () => {
+    const row = rowRef.current;
+    if (row) {
+      row.style.transition = "opacity 150ms ease";
+      row.style.opacity = "0";
+    }
+    setTimeout(collapseAndDismiss, 150);
+  };
+
   return (
-    <div className="relative overflow-hidden group">
+    <div ref={wrapperRef} className="relative overflow-hidden group">
       <div
         ref={rowRef}
         onTouchStart={handleTouchStart}
@@ -103,7 +124,7 @@ function DismissableRow({
       </div>
       {/* Desktop hover X */}
       <button
-        onClick={() => onDismiss(id)}
+        onClick={handleDesktopDismiss}
         className="absolute right-0 top-1/2 -translate-y-1/2 hidden md:group-hover:flex items-center justify-center w-5 h-5 rounded-full text-black/20 hover:text-black/50 hover:bg-black/5 transition-colors"
         aria-label="Dismiss"
       >
