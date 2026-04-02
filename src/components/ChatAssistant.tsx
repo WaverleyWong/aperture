@@ -434,6 +434,7 @@ export default function ChatAssistant() {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 component-scroll">
         {messages.map((msg, i) => (<MessageBubble key={i} message={msg} />))}
+        {pendingAction && <ActionCard action={pendingAction} onApprove={handleApproveAction} onReject={handleRejectAction} />}
         {loading && <TypingIndicator />}
       </div>
 
