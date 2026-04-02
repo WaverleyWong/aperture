@@ -23,6 +23,16 @@ export async function runMigrations() {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      date       TEXT NOT NULL,
+      role       TEXT NOT NULL,
+      content    TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   // Add columns if upgrading from older schema
   const columns = await db.execute("PRAGMA table_info(daily_log)");
   const colNames = new Set(columns.rows.map((c) => c.name as string));
