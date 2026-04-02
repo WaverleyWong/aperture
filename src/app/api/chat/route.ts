@@ -132,15 +132,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ role: "assistant", content: confirmMsg });
     }
 
-    // Load existing conversation
+    // Load existing conversation and sanitize for Anthropic API
     const existing = await db.execute({
       sql: "SELECT role, content FROM chat_messages WHERE date = ? ORDER BY id ASC",
       args: [today],
     });
-    const history = existing.rows.map((r) => ({
+    const rawHistory = existing.rows.map((r) => ({
       role: r.role as "user" | "assistant",
-      content: r.content as string,
-    }));
+      content: (r.content as string).replace(/\n?\n?\[PENDING ACTION\]/g, "").trim(),
+    })).filter((m) => m.content.length > 0);
+
+    // Merge consecutive same-role messages (Anthropic requires alternating roles)
+    const merged: { role: "user" | "assistant"; content: string }[] = [];
+    for (const msg of rawHistory) {
+      if (merged.length > 0 && merged[merged.length - 1].role === msg.role) {
+        merged[merged.length - 1].content += "\n" + msg.content;
+      } else {
+        merged.push({ ...msg });
+      }
+    }
+    // Ensure history starts with a user message (Anthropic requirement)
+    const firstUserIdx = merged.findIndex((m) => m.role === "user");
+    const trimmed = firstUserIdx >= 0 ? merged.slice(firstUserIdx) : [];
+    // Keep last 20 messages to avoid token overflow
+    const history = trimmed.slice(-20);
 
     const systemPrompt = buildSystemPrompt(dashboardContext);
 
@@ -240,7 +255,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ role: "assistant", content: assistantMsg });
   } catch (error) {
     console.error("Chat POST error:", error);
-    return NextResponse.json({ error: "Chat failed" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: "Chat failed", detail: msg }, { status: 500 });
   }
 }
 
