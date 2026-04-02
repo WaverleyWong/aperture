@@ -1,21 +1,71 @@
 import { NextResponse } from "next/server";
+import { getDb } from "@/db/database";
+import { runMigrations } from "@/db/migrate";
 
 export const dynamic = "force-dynamic";
 
 const CSV_URL = process.env.FINANCE_CSV_URL!;
 const MONZO_ACCOUNT_ID = "acc_00009TQJALpHol2So7TGAD";
+const MONZO_TOKEN_KEY = "monzo-tokens";
 
-// Monzo token management — auto-refresh when expired
-let monzoAccessToken = process.env.MONZO_ACCESS_TOKEN!;
-let monzoRefreshToken = process.env.MONZO_REFRESH_TOKEN!;
+// In-memory cache for current process
+let monzoAccessToken = "";
+let monzoRefreshToken = "";
+
+async function loadMonzoTokens(): Promise<{ access: string; refresh: string }> {
+  // Return in-memory tokens if we have them
+  if (monzoAccessToken && monzoRefreshToken) {
+    return { access: monzoAccessToken, refresh: monzoRefreshToken };
+  }
+
+  // Try Turso first (persisted from previous refresh)
+  try {
+    await runMigrations();
+    const db = getDb();
+    const row = await db.execute({
+      sql: "SELECT value FROM live_state WHERE key = ?",
+      args: [MONZO_TOKEN_KEY],
+    });
+    if (row.rows.length > 0) {
+      const stored = JSON.parse(row.rows[0].value as string);
+      if (stored.access_token && stored.refresh_token) {
+        monzoAccessToken = stored.access_token;
+        monzoRefreshToken = stored.refresh_token;
+        return { access: monzoAccessToken, refresh: monzoRefreshToken };
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load Monzo tokens from Turso:", e);
+  }
+
+  // Fall back to env vars
+  monzoAccessToken = process.env.MONZO_ACCESS_TOKEN!;
+  monzoRefreshToken = process.env.MONZO_REFRESH_TOKEN!;
+  return { access: monzoAccessToken, refresh: monzoRefreshToken };
+}
+
+async function saveMonzoTokens(access: string, refresh: string): Promise<void> {
+  try {
+    const db = getDb();
+    await db.execute({
+      sql: `INSERT INTO live_state (key, value, updated_at) VALUES (?, ?, datetime('now'))
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      args: [MONZO_TOKEN_KEY, JSON.stringify({ access_token: access, refresh_token: refresh })],
+    });
+  } catch (e) {
+    console.error("Failed to save Monzo tokens to Turso:", e);
+  }
+}
 
 async function getMonzoToken(): Promise<string> {
+  const { access, refresh } = await loadMonzoTokens();
+
   // Try the current token first with a lightweight call
   const testRes = await fetch("https://api.monzo.com/ping/whoami", {
-    headers: { Authorization: `Bearer ${monzoAccessToken}` },
+    headers: { Authorization: `Bearer ${access}` },
   });
 
-  if (testRes.ok) return monzoAccessToken;
+  if (testRes.ok) return access;
 
   // Token expired — refresh it
   console.log("Monzo token expired, refreshing...");
@@ -23,7 +73,7 @@ async function getMonzoToken(): Promise<string> {
     grant_type: "refresh_token",
     client_id: process.env.MONZO_CLIENT_ID!,
     client_secret: process.env.MONZO_CLIENT_SECRET!,
-    refresh_token: monzoRefreshToken,
+    refresh_token: refresh,
   });
 
   const refreshRes = await fetch("https://api.monzo.com/oauth2/token", {
@@ -41,7 +91,10 @@ async function getMonzoToken(): Promise<string> {
   const tokens = await refreshRes.json();
   monzoAccessToken = tokens.access_token;
   monzoRefreshToken = tokens.refresh_token;
-  console.log("Monzo token refreshed successfully");
+
+  // Persist to Turso so the next cold start picks them up
+  await saveMonzoTokens(monzoAccessToken, monzoRefreshToken);
+  console.log("Monzo token refreshed and persisted to Turso");
   return monzoAccessToken;
 }
 
