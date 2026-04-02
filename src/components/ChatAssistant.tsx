@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 type Message = { role: "user" | "assistant"; content: string };
+type PendingAction = { tool: string; args: Record<string, unknown>; description: string };
 
 const MIN_W = 340;
 const MIN_H = 400;
@@ -10,16 +11,21 @@ const NAME = "Pidge";
 
 async function gatherContext(): Promise<string> {
   const parts: string[] = [];
+  const t = Date.now();
 
   try {
-    const [calRes, taskRes, finRes, blokRes, digestRes] = await Promise.allSettled([
-      fetch(`/api/calendar?_t=${Date.now()}`),
-      fetch(`/api/notion-tasks?_t=${Date.now()}`),
-      fetch(`/api/finance?_t=${Date.now()}`),
-      fetch(`/api/blok-metrics?_t=${Date.now()}`),
-      fetch(`/api/personal-digest?_t=${Date.now()}`),
+    const [calRes, taskRes, finRes, blokRes, digestRes, slackRes, stateRes, vitalsRes] = await Promise.allSettled([
+      fetch(`/api/calendar?_t=${t}`),
+      fetch(`/api/notion-tasks?_t=${t}`),
+      fetch(`/api/finance?_t=${t}`),
+      fetch(`/api/blok-metrics?_t=${t}`),
+      fetch(`/api/personal-digest?_t=${t}`),
+      fetch(`/api/slack-digest?_t=${t}`),
+      fetch(`/api/state`),
+      fetch(process.env.NEXT_PUBLIC_CALORIE_CSV_URL || ""),
     ]);
 
+    // Calendar
     if (calRes.status === "fulfilled" && calRes.value.ok) {
       const data = await calRes.value.json();
       const events = data.events || [];
@@ -33,6 +39,7 @@ async function gatherContext(): Promise<string> {
       }
     }
 
+    // Tasks
     if (taskRes.status === "fulfilled" && taskRes.value.ok) {
       const data = await taskRes.value.json();
       const items = data.tasks || [];
@@ -40,43 +47,128 @@ async function gatherContext(): Promise<string> {
         parts.push("TASKS: No tasks today.");
       } else {
         const done = items.filter((t: { done: boolean }) => t.done).length;
-        const labels = items.slice(0, 8).map((t: { label: string; done: boolean }) =>
+        const labels = items.slice(0, 10).map((t: { label: string; done: boolean }) =>
           `${t.label}${t.done ? " [done]" : ""}`
         ).join(", ");
         parts.push(`TASKS: ${items.length} tasks (${done} done): ${labels}`);
       }
     }
 
+    // Timebox (from state)
+    if (stateRes.status === "fulfilled" && stateRes.value.ok) {
+      const state = await stateRes.value.json();
+      if (state.timebox) {
+        try {
+          const entries = JSON.parse(state.timebox);
+          if (entries.length > 0) {
+            const list = entries.map((e: { text: string; checked: boolean }) =>
+              `${e.text}${e.checked ? " [done]" : ""}`
+            ).join(", ");
+            parts.push(`TIMEBOX: ${entries.length} entries: ${list}`);
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    // Finance
     if (finRes.status === "fulfilled" && finRes.value.ok) {
       const data = await finRes.value.json();
       const w = data.weekly;
       const m = data.monthly || [];
+      const subs = data.subscriptions || [];
       const fp: string[] = [];
       if (w) {
-        fp.push(`Groceries: £${w.groceries.monthTotal}/£${w.groceries.monthTarget}`);
-        fp.push(`Going Out: £${w.goingOut.monthTotal}/£${w.goingOut.monthTarget}`);
+        fp.push(`Groceries: £${w.groceries.monthTotal}/£${w.groceries.monthTarget} (this week £${w.groceries.thisWeek})`);
+        fp.push(`Going Out: £${w.goingOut.monthTotal}/£${w.goingOut.monthTarget} (this week £${w.goingOut.thisWeek})`);
+        fp.push(`Month progress: ${Math.round(w.monthProgress * 100)}%`);
       }
       for (const cat of m) {
         fp.push(`${cat.label}: £${cat.spent}/£${cat.target}`);
       }
+      if (subs.length > 0) {
+        const subList = subs.map((s: { name: string; charged: number | null; expected: number }) =>
+          `${s.name}: ${s.charged !== null ? `£${s.charged} charged` : `£${s.expected} expected, not yet charged`}`
+        ).join(", ");
+        fp.push(`Subscriptions: ${subList}`);
+      }
       if (fp.length > 0) parts.push(`FINANCES: ${fp.join(". ")}`);
     }
 
+    // BLOK Metrics
     if (blokRes.status === "fulfilled" && blokRes.value.ok) {
       const data = await blokRes.value.json();
       if (data.totalSalesTY) {
-        parts.push(`BLOK METRICS: Sales MTD £${data.totalSalesTY.toLocaleString()} (LY £${data.totalSalesLY.toLocaleString()}). Trials: ${data.sc90TrialsTY} (LY ${data.sc90TrialsLY}). Ad spend: £${Math.round(data.totalAdSpend)}. CAC: £${data.blendedCAC.toFixed(2)}.`);
+        parts.push(`BLOK METRICS: Sales MTD £${data.totalSalesTY.toLocaleString()} (LY £${data.totalSalesLY.toLocaleString()}). Trials: ${data.sc90TrialsTY} (LY ${data.sc90TrialsLY}). Ad spend: £${Math.round(data.totalAdSpend)}. CAC: £${data.blendedCAC.toFixed(2)}. As of ${data.asOfDate}.`);
       }
     }
 
+    // Personal Email Digest
     if (digestRes.status === "fulfilled" && digestRes.value.ok) {
       const data = await digestRes.value.json();
       const nr = data.needsReply || [];
       const fyi = data.fyi || [];
       const dp: string[] = [];
-      if (nr.length > 0) dp.push(`${nr.length} emails needing reply: ${nr.map((e: { sender: string }) => e.sender).join(", ")}`);
-      if (fyi.length > 0) dp.push(`${fyi.length} FYI emails`);
-      if (dp.length > 0) parts.push(`EMAIL DIGEST: ${dp.join(". ")}`);
+      if (nr.length > 0) dp.push(`${nr.length} emails needing reply: ${nr.map((e: { sender: string; subject: string }) => `${e.sender} (${e.subject})`).join(", ")}`);
+      if (fyi.length > 0) dp.push(`${fyi.length} FYI emails: ${fyi.map((e: { sender: string; subject: string }) => `${e.sender} (${e.subject})`).join(", ")}`);
+      if (dp.length > 0) parts.push(`PERSONAL EMAIL: ${dp.join(". ")}`);
+    }
+
+    // Slack Digest
+    if (slackRes.status === "fulfilled" && slackRes.value.ok) {
+      const data = await slackRes.value.json();
+      const nr = data.needsResponse || [];
+      const fyi = data.fyi || [];
+      const sp: string[] = [];
+      if (nr.length > 0) sp.push(`${nr.length} needing response: ${nr.map((s: { sender: string; summary: string }) => `${s.sender}: ${s.summary}`).join(", ")}`);
+      if (fyi.length > 0) sp.push(`${fyi.length} FYI`);
+      if (sp.length > 0) parts.push(`SLACK: ${sp.join(". ")}`);
+    }
+
+    // Vitals (calories + weight from CSV)
+    if (vitalsRes.status === "fulfilled" && vitalsRes.value.ok) {
+      const text = await vitalsRes.value.text();
+      const lines = text.split("\n").filter((l: string) => l.trim());
+      if (lines.length > 1) {
+        const header = lines[0].split(",").map((h: string) => h.trim().toLowerCase());
+        const weightCol = header.indexOf("weight");
+        const targetCol = header.indexOf("target");
+        const countCol = header.indexOf("count");
+
+        const now = new Date();
+        const todayKey = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+
+        let todayCalories = "";
+        let latestWeight = "";
+
+        for (let i = lines.length - 1; i >= 1; i--) {
+          const cols = lines[i].split(",");
+          const dateRaw = cols[0]?.trim().replace(/[-/.]/g, "/");
+          if (!dateRaw) continue;
+          const dateParts = dateRaw.split("/");
+          if (dateParts.length !== 3) continue;
+          let [d, m, y] = dateParts.map(Number);
+          if (y < 100) y += 2000;
+          const rowKey = `${d}/${m}/${y}`;
+
+          if (rowKey === todayKey && countCol >= 0) {
+            const cal = parseFloat(cols[countCol]);
+            const tgt = targetCol >= 0 ? parseFloat(cols[targetCol]) : NaN;
+            if (!isNaN(cal)) todayCalories = `Today: ${Math.round(cal)} cal${!isNaN(tgt) ? ` / ${Math.round(tgt)} target` : ""}`;
+          }
+
+          if (!latestWeight && weightCol >= 0) {
+            const w = parseFloat(cols[weightCol]);
+            if (!isNaN(w) && w > 0) latestWeight = `Latest weight: ${w.toFixed(1)}kg`;
+          }
+
+          if (todayCalories && latestWeight) break;
+        }
+
+        const vp: string[] = [];
+        if (todayCalories) vp.push(todayCalories);
+        if (latestWeight) vp.push(latestWeight);
+        if (vp.length > 0) parts.push(`VITALS: ${vp.join(". ")}`);
+      }
     }
   } catch {
     // Best effort
@@ -92,6 +184,7 @@ export default function ChatAssistant() {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [context, setContext] = useState("");
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -183,6 +276,9 @@ export default function ChatAssistant() {
       if (data.content) {
         setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
       }
+      if (data.pendingAction) {
+        setPendingAction(data.pendingAction);
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -192,6 +288,33 @@ export default function ChatAssistant() {
       setLoading(false);
     }
   }, [input, loading]);
+
+  const handleApproveAction = useCallback(async () => {
+    if (!pendingAction) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ executeAction: { tool: action.tool, args: action.args }, context }),
+      });
+      const data = await res.json();
+      if (data.content) {
+        setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
+      }
+    } catch {
+      setMessages((prev) => [...prev, { role: "assistant", content: "Failed to execute action." }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [pendingAction, context]);
+
+  const handleRejectAction = useCallback(() => {
+    setPendingAction(null);
+    setMessages((prev) => [...prev, { role: "assistant", content: "Cancelled — no changes made." }]);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -264,6 +387,7 @@ export default function ChatAssistant() {
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 scrollbar-none">
           {messages.map((msg, i) => (<MessageBubble key={i} message={msg} />))}
+          {pendingAction && <ActionCard action={pendingAction} onApprove={handleApproveAction} onReject={handleRejectAction} />}
           {loading && <TypingIndicator />}
         </div>
 
@@ -336,6 +460,43 @@ export default function ChatAssistant() {
       <div className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize" onPointerDown={(e) => handlePointerDown(e, "resize-se")} />
       <div className="absolute bottom-0 left-0 right-4 h-1.5 cursor-s-resize" onPointerDown={(e) => handlePointerDown(e, "resize-s")} />
       <div className="absolute top-0 bottom-0 right-0 w-1.5 cursor-e-resize" onPointerDown={(e) => handlePointerDown(e, "resize-e")} />
+    </div>
+  );
+}
+
+function ActionCard({
+  action,
+  onApprove,
+  onReject,
+}: {
+  action: PendingAction;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[90%] rounded-2xl rounded-bl-md border border-cerulean/20 bg-cerulean/[0.04] px-3.5 py-3 anim-fade">
+        <div className="text-[10px] uppercase tracking-[0.12em] text-cerulean font-semibold mb-2">
+          Proposed Change
+        </div>
+        <p className="text-[13px] text-black/80 leading-relaxed mb-3">
+          {action.description}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={onApprove}
+            className="flex-1 text-[11px] font-medium py-1.5 rounded-lg bg-cerulean text-white hover:bg-cerulean/90 transition-colors anim-tap"
+          >
+            Approve
+          </button>
+          <button
+            onClick={onReject}
+            className="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-black/10 text-black/40 hover:text-black/60 hover:bg-black/5 transition-colors anim-tap"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
