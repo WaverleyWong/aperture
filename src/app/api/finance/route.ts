@@ -3,8 +3,47 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const CSV_URL = process.env.FINANCE_CSV_URL!;
-const MONZO_TOKEN = process.env.MONZO_ACCESS_TOKEN!;
 const MONZO_ACCOUNT_ID = "acc_00009TQJALpHol2So7TGAD";
+
+// Monzo token management — auto-refresh when expired
+let monzoAccessToken = process.env.MONZO_ACCESS_TOKEN!;
+let monzoRefreshToken = process.env.MONZO_REFRESH_TOKEN!;
+
+async function getMonzoToken(): Promise<string> {
+  // Try the current token first with a lightweight call
+  const testRes = await fetch("https://api.monzo.com/ping/whoami", {
+    headers: { Authorization: `Bearer ${monzoAccessToken}` },
+  });
+
+  if (testRes.ok) return monzoAccessToken;
+
+  // Token expired — refresh it
+  console.log("Monzo token expired, refreshing...");
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: process.env.MONZO_CLIENT_ID!,
+    client_secret: process.env.MONZO_CLIENT_SECRET!,
+    refresh_token: monzoRefreshToken,
+  });
+
+  const refreshRes = await fetch("https://api.monzo.com/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+
+  if (!refreshRes.ok) {
+    const err = await refreshRes.text();
+    console.error("Monzo token refresh failed:", err);
+    throw new Error("Monzo token refresh failed");
+  }
+
+  const tokens = await refreshRes.json();
+  monzoAccessToken = tokens.access_token;
+  monzoRefreshToken = tokens.refresh_token;
+  console.log("Monzo token refreshed successfully");
+  return monzoAccessToken;
+}
 
 function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
@@ -66,6 +105,7 @@ type MonzoTransaction = {
 };
 
 async function fetchMonzoTransactions(): Promise<MonzoTransaction[]> {
+  const token = await getMonzoToken();
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   let since: string = monthStart.toISOString();
@@ -75,7 +115,7 @@ async function fetchMonzoTransactions(): Promise<MonzoTransaction[]> {
   while (true) {
     const url = `https://api.monzo.com/transactions?account_id=${MONZO_ACCOUNT_ID}&since=${since}&limit=100&expand[]=merchant`;
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${MONZO_TOKEN}` },
+      headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
 
