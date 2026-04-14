@@ -28,9 +28,6 @@ function refreshAll() {
 export default function SkyBanner({ children }: { children: React.ReactNode }) {
   const [hour, setHour] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [greeting, setGreeting] = useState("");
-  const [greetingVisible, setGreetingVisible] = useState(true);
-
   // Pull-to-refresh state (mobile)
   const [pullProgress, setPullProgress] = useState(0);
   const [pulling, setPulling] = useState(false);
@@ -43,23 +40,6 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
       setHour(new Date().getHours());
     }, 60_000);
     return () => clearInterval(interval);
-  }, []);
-
-  // Fetch greeting only after DayGate completes (so tasks/calendar data is ready)
-  // First load after already-reviewed day: use cache. After fresh review: regenerate.
-  useEffect(() => {
-    let hasFetched = false;
-    const fetchGreeting = () => {
-      // If we already fetched (cached), this is a fresh DayGate review — regenerate
-      const refresh = hasFetched ? "1" : "0";
-      hasFetched = true;
-      fetch(`/api/greeting?refresh=${refresh}`)
-        .then((r) => r.json())
-        .then((data) => { if (data.greeting) setGreeting(data.greeting); })
-        .catch(() => {});
-    };
-    window.addEventListener("daygate-complete", fetchGreeting);
-    return () => window.removeEventListener("daygate-complete", fetchGreeting);
   }, []);
 
   const bgStyle = hour !== null ? getBackgroundStyle(hour) : { backgroundColor: "#E6FDFF" };
@@ -191,41 +171,6 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
             })}
           </span>
         </header>
-
-        {/* Greeting */}
-        {greeting && (
-          <div className="flex items-start gap-2 mb-4">
-            <p
-              className={`flex-1 text-sm italic anim-fade transition-colors duration-1000 ${
-                greetingVisible
-                  ? dark ? "text-white/40" : "text-black/40"
-                  : dark ? "text-white/15" : "text-black/15"
-              }`}
-            >
-              {greetingVisible ? greeting : "Greeting hidden"}
-            </p>
-            <button
-              onClick={() => setGreetingVisible((v) => !v)}
-              className={`shrink-0 mt-0.5 transition-colors ${
-                dark ? "text-white/20 hover:text-white/40" : "text-black/20 hover:text-black/40"
-              }`}
-              aria-label={greetingVisible ? "Hide greeting" : "Show greeting"}
-            >
-              {greetingVisible ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </svg>
-              )}
-            </button>
-          </div>
-        )}
 
         {children}
       </div>
