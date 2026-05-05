@@ -3,7 +3,6 @@ import Timebox from "@/components/Timebox";
 import Finances from "@/components/Finances";
 import Vitals from "@/components/Vitals";
 import TodaysActivities from "@/components/TodaysActivities";
-import Fitness from "@/components/Fitness";
 import Digest from "@/components/Digest";
 import BlokMetrics from "@/components/BlokMetrics";
 import Scribblebox from "@/components/Scribblebox";
@@ -23,7 +22,6 @@ export default function Home() {
           {/* Column 1 */}
           <div className="flex flex-col gap-5">
             <TodoList />
-            <Fitness />
           </div>
 
           {/* Column 2 */}

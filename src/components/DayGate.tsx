@@ -155,13 +155,40 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
   const saveAndClear = async () => {
     setStatus("saving");
 
+    const manualMovesToTimebox: TimeboxEntry[] = [];
+
+    // Mark reviewed FIRST — this is the critical path that prevents double-gating
+    await markReviewedAndClear();
+
+    // Save moved manual tasks to today's timebox (after the clear)
+    for (const task of tasks) {
+      if (task.action === "move" && !task.notionPageId) {
+        manualMovesToTimebox.push({
+          id: crypto.randomUUID(),
+          text: task.text,
+          checked: false,
+        });
+      }
+    }
+
+    if (manualMovesToTimebox.length > 0) {
+      try {
+        await fetch("/api/state", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "timebox", value: JSON.stringify(manualMovesToTimebox) }),
+        });
+      } catch (err) {
+        console.error("Failed to save moved tasks:", err);
+      }
+    }
+
+    // Non-critical syncs — Notion updates and daily log archive
     try {
       const promises: Promise<unknown>[] = [];
-      const manualMovesToTimebox: TimeboxEntry[] = [];
 
       for (const task of tasks) {
         if (task.done || task.action === "done") {
-          // Mark as done in Notion if it's a Notion task
           if (task.notionPageId) {
             promises.push(
               fetch("/api/notion-tasks", {
@@ -173,7 +200,6 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
           }
         } else if (task.action === "move") {
           if (task.notionPageId) {
-            // Update due date to today in Notion
             promises.push(
               fetch("/api/notion-tasks", {
                 method: "PATCH",
@@ -181,18 +207,10 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
                 body: JSON.stringify({ pageId: task.notionPageId, dueDate: getTodayISO() }),
               })
             );
-          } else {
-            // Manual task — add to today's timebox
-            manualMovesToTimebox.push({
-              id: crypto.randomUUID(),
-              text: task.text,
-              checked: false,
-            });
           }
         } else if (task.action === "drop") {
           // Nothing to do — just don't carry it forward
         } else {
-          // No action chosen on uncompleted task — sync current state
           if (task.notionPageId) {
             promises.push(
               fetch("/api/notion-tasks", {
@@ -207,7 +225,6 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
 
       await Promise.allSettled(promises);
 
-      // Archive to daily log
       await fetch("/api/daily-log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,20 +236,8 @@ export default function DayGate({ children }: { children: React.ReactNode }) {
           mood,
         }),
       });
-
-      // Clear yesterday's timebox and mark reviewed FIRST
-      await markReviewedAndClear();
-
-      // THEN save moved manual tasks to today's timebox (after the clear)
-      if (manualMovesToTimebox.length > 0) {
-        await fetch("/api/state", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key: "timebox", value: JSON.stringify(manualMovesToTimebox) }),
-        });
-      }
     } catch (err) {
-      console.error("Save error:", err);
+      console.error("Non-critical sync error:", err);
     }
 
     setStatus("ready");
