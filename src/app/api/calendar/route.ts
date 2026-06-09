@@ -121,9 +121,13 @@ export async function GET() {
     const timeMin = `${londonDate}T00:00:00${offsetStr}`;
     const timeMax = `${londonDate}T23:59:59${offsetStr}`;
 
-    // Fetch work and personal calendars in parallel
+    // Fetch work and personal calendars in parallel. Each side is fault-isolated
+    // so one dead account/token doesn't take down the whole card.
     const [workEvents, personalEvents] = await Promise.all([
-      fetchCalendarEvents(getWorkOAuth2Client(), timeMin, timeMax),
+      fetchCalendarEvents(getWorkOAuth2Client(), timeMin, timeMax).catch((err) => {
+        console.error("Work calendar fetch failed:", err);
+        return [] as CalendarEvent[];
+      }),
       fetchCalendarEvents(getPersonalOAuth2Client(), timeMin, timeMax, "personal").catch((err) => {
         console.error("Personal calendar fetch failed:", err);
         return [] as CalendarEvent[];
