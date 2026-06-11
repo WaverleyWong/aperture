@@ -123,9 +123,11 @@ export async function GET() {
 
     // Fetch work and personal calendars in parallel. Each side is fault-isolated
     // so one dead account/token doesn't take down the whole card.
+    let workError: string | null = null;
     const [workEvents, personalEvents] = await Promise.all([
       fetchCalendarEvents(getWorkOAuth2Client(), timeMin, timeMax).catch((err) => {
         console.error("Work calendar fetch failed:", err);
+        workError = err?.response?.data?.error_description || err?.errors?.[0]?.message || err?.message || String(err);
         return [] as CalendarEvent[];
       }),
       fetchCalendarEvents(getPersonalOAuth2Client(), timeMin, timeMax, "personal").catch((err) => {
@@ -146,7 +148,7 @@ export async function GET() {
     const sorted = merged.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     const events = sorted.map(({ sortKey: _, ...rest }) => rest);
 
-    return NextResponse.json({ events });
+    return NextResponse.json({ events, _workError: workError });
   } catch (error: unknown) {
     console.error("Calendar API error:", error);
     return NextResponse.json({ events: [], error: "Failed to load calendar" }, { status: 500 });
