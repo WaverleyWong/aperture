@@ -151,6 +151,10 @@ export async function GET() {
     return NextResponse.json({ events, _workError: workError });
   } catch (error: unknown) {
     console.error("Calendar API error:", error);
-    return NextResponse.json({ events: [], error: "Failed to load calendar" }, { status: 500 });
+    const err = error as { message?: string; stack?: string };
+    return NextResponse.json(
+      { events: [], error: "Failed to load calendar", _outerError: err?.message || String(error), _stack: err?.stack?.split("\n").slice(0, 4) },
+      { status: 500 }
+    );
   }
 }
