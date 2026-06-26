@@ -1,4 +1,5 @@
 import TodoList from "@/components/TodoList";
+import AddWorkout from "@/components/AddWorkout";
 import Timebox from "@/components/Timebox";
 import Finances from "@/components/Finances";
 import Vitals from "@/components/Vitals";
@@ -22,6 +23,7 @@ export default function Home() {
           {/* Column 1 */}
           <div className="flex flex-col gap-5">
             <TodoList />
+            <AddWorkout />
           </div>
 
           {/* Column 2 */}
@@ -60,6 +62,7 @@ export default function Home() {
           />
 
           {/* Stacked components */}
+          <AddWorkout />
           <TodaysActivities />
           <Digest />
           <BlokMetrics />
