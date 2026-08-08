@@ -33,6 +33,26 @@ export async function runMigrations() {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS week_log (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      entry_date      TEXT NOT NULL,
+      title           TEXT NOT NULL,
+      notion_page_id  TEXT,
+      timebox_task_id TEXT,
+      note            TEXT,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  await db.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS week_log_task_date ON week_log (timebox_task_id, entry_date)"
+  );
+
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS week_log_entry_date ON week_log (entry_date)"
+  );
+
   // Add columns if upgrading from older schema
   const columns = await db.execute("PRAGMA table_info(daily_log)");
   const colNames = new Set(columns.rows.map((c) => c.name as string));

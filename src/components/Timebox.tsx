@@ -2,6 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect, KeyboardEvent, DragEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { getTodayLondonISO } from "@/lib/week";
 
 export interface TimeboxItem {
   id: string;
@@ -21,6 +23,8 @@ export default function Timebox() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [reorderingId, setReorderingId] = useState<string | null>(null);
+  // Week-log state lives apart from `items` so refetching the timebox can't reset it
+  const [loggedIds, setLoggedIds] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement | null>(null);
   const editInitialised = useRef(false);
@@ -43,15 +47,28 @@ export default function Timebox() {
       .finally(() => setLoaded(true));
   }, []);
 
+  // Which of today's tasks are already in the week log
+  const loadWeekLog = useCallback(() => {
+    fetch(`/api/week-log?date=${getTodayLondonISO()}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const ids = (data.entries ?? [])
+          .map((e: { timeboxTaskId?: string }) => e.timeboxTaskId)
+          .filter(Boolean) as string[];
+        setLoggedIds(new Set(ids));
+      })
+      .catch(() => {});
+  }, []);
+
   // Load on mount
-  useEffect(() => { loadFromTurso(); }, [loadFromTurso]);
+  useEffect(() => { loadFromTurso(); loadWeekLog(); }, [loadFromTurso, loadWeekLog]);
 
   // Listen for global refresh
   useEffect(() => {
-    const handler = () => loadFromTurso();
+    const handler = () => { loadFromTurso(); loadWeekLog(); };
     window.addEventListener("aperture-refresh-all", handler);
     return () => window.removeEventListener("aperture-refresh-all", handler);
-  }, [loadFromTurso]);
+  }, [loadFromTurso, loadWeekLog]);
 
   // Debounced save to Turso on every change (after initial load)
   useEffect(() => {
@@ -71,6 +88,7 @@ export default function Timebox() {
     const handler = () => {
       setItems([]);
       setReorderingId(null);
+      setLoggedIds(new Set());
     };
     window.addEventListener("timebox-clear", handler);
     return () => window.removeEventListener("timebox-clear", handler);
@@ -152,6 +170,46 @@ export default function Timebox() {
           prev.map((i) => (i.id === id ? { ...i, checked: !newChecked } : i))
         );
       }
+    }
+  };
+
+  // Add/remove this task in the week log. Optimistic, and idempotent server-side.
+  const toggleLog = async (item: TimeboxItem) => {
+    const entryDate = getTodayLondonISO();
+    const wasLogged = loggedIds.has(item.id);
+
+    setLoggedIds((prev) => {
+      const next = new Set(prev);
+      if (wasLogged) next.delete(item.id);
+      else next.add(item.id);
+      return next;
+    });
+
+    try {
+      const res = wasLogged
+        ? await fetch(
+            `/api/week-log?timeboxTaskId=${encodeURIComponent(item.id)}&entryDate=${entryDate}`,
+            { method: "DELETE" }
+          )
+        : await fetch("/api/week-log", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              entryDate,
+              title: item.text,
+              notionPageId: item.notionPageId,
+              timeboxTaskId: item.id,
+            }),
+          });
+      if (!res.ok) throw new Error(`Week log request failed: ${res.status}`);
+    } catch (err) {
+      console.error("Failed to update week log:", err);
+      setLoggedIds((prev) => {
+        const next = new Set(prev);
+        if (wasLogged) next.add(item.id);
+        else next.delete(item.id);
+        return next;
+      });
     }
   };
 
@@ -379,35 +437,49 @@ export default function Timebox() {
       onDragLeave={handleContainerDragLeave}
       onDrop={handleContainerDrop}
     >
-      <button
-        type="button"
-        onClick={handleTitleClick}
-        className="flex items-center gap-2 mb-4 text-left cursor-pointer group"
-      >
-        <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-forest group-hover:text-forest/70 transition-colors">
-          Timebox
-        </h2>
-        <span
-          className={`transition-opacity duration-200 ${refreshing ? "opacity-100" : "opacity-0"}`}
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <button
+          type="button"
+          onClick={handleTitleClick}
+          className="flex items-center gap-2 text-left cursor-pointer group"
         >
-          <svg
-            className="w-3 h-3 animate-spin text-forest/40"
-            viewBox="0 0 16 16"
-            fill="none"
+          <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-forest group-hover:text-forest/70 transition-colors">
+            Timebox
+          </h2>
+          <span
+            className={`transition-opacity duration-200 ${refreshing ? "opacity-100" : "opacity-0"}`}
           >
-            <circle
-              cx="8"
-              cy="8"
-              r="6"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeDasharray="28"
-              strokeDashoffset="8"
-              strokeLinecap="round"
-            />
+            <svg
+              className="w-3 h-3 animate-spin text-forest/40"
+              viewBox="0 0 16 16"
+              fill="none"
+            >
+              <circle
+                cx="8"
+                cy="8"
+                r="6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeDasharray="28"
+                strokeDashoffset="8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+        </button>
+
+        {/* Open the week log */}
+        <Link
+          href="/week"
+          className="flex items-center gap-1.5 -mr-1 py-1.5 px-2 rounded-lg text-forest/40 hover:text-cerulean hover:bg-forest/5 transition-colors"
+          title="Open the week log"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
           </svg>
-        </span>
-      </button>
+          <span className="text-[11px] font-medium uppercase tracking-wider">Week</span>
+        </Link>
+      </div>
 
       <div className={`flex-1 flex flex-col transition-opacity duration-300 ${refreshing ? "opacity-30" : "opacity-100"}`}>
       {/* Items list */}
@@ -503,6 +575,32 @@ export default function Timebox() {
                   {item.text}
                 </span>
               )}
+
+              {/* Week log toggle — always visible so logged tasks read at a glance */}
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleLog(item); }}
+                className={`anim-tap flex-shrink-0 p-1 transition-colors ${
+                  loggedIds.has(item.id)
+                    ? "text-cerulean"
+                    : "text-forest/25 hover:text-forest/50"
+                }`}
+                aria-label={loggedIds.has(item.id) ? "Remove from week log" : "Add to week log"}
+                aria-pressed={loggedIds.has(item.id)}
+                title={loggedIds.has(item.id) ? "In the week log" : "Add to week log"}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill={loggedIds.has(item.id) ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
 
               {/* Notion indicator */}
               {item.notionPageId && (
