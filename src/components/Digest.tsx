@@ -461,11 +461,13 @@ export default function Digest() {
     [saveDismissed]
   );
 
-  const fetchPersonal = useCallback(async () => {
+  const fetchPersonal = useCallback(async (force = false) => {
     setPersonalLoading(true);
     setPersonalError(null);
     try {
-      const res = await fetch(`/api/personal-digest?_t=${Date.now()}`);
+      const res = await fetch(
+        `/api/personal-digest?_t=${Date.now()}${force ? "&refresh=1" : ""}`
+      );
       const json = await res.json();
       if (json.error) {
         setPersonalError(json.error);
@@ -480,11 +482,13 @@ export default function Digest() {
     }
   }, []);
 
-  const fetchWork = useCallback(async () => {
+  const fetchWork = useCallback(async (force = false) => {
     setWorkLoading(true);
     setWorkError(null);
     try {
-      const res = await fetch(`/api/work-digest?_t=${Date.now()}`);
+      const res = await fetch(
+        `/api/work-digest?_t=${Date.now()}${force ? "&refresh=1" : ""}`
+      );
       const json = await res.json();
       if (json.error) {
         setWorkError(json.error);
@@ -499,11 +503,13 @@ export default function Digest() {
     }
   }, []);
 
-  const fetchSlack = useCallback(async () => {
+  const fetchSlack = useCallback(async (force = false) => {
     setSlackLoading(true);
     setSlackError(null);
     try {
-      const res = await fetch(`/api/slack-digest?_t=${Date.now()}`);
+      const res = await fetch(
+        `/api/slack-digest?_t=${Date.now()}${force ? "&refresh=1" : ""}`
+      );
       const json = await res.json();
       if (json.error) {
         setSlackError(json.error);
@@ -526,7 +532,7 @@ export default function Digest() {
   }, [personalFetched, fetchPersonal, workFetched, fetchWork, slackFetched, fetchSlack]);
 
   const handleRefresh = useCallback(async () => {
-    await Promise.all([fetchPersonal(), fetchWork(), fetchSlack()]);
+    await Promise.all([fetchPersonal(true), fetchWork(true), fetchSlack(true)]);
   }, [fetchPersonal, fetchWork, fetchSlack]);
 
   // Hidden entirely until SLACK_MCP_TOKEN is set — the route reports that as

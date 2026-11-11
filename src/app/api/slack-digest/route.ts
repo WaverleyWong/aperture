@@ -1,6 +1,7 @@
 import { WebClient } from "@slack/web-api";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { CACHE_KEYS, readSlotCache, writeSlotCache } from "@/lib/liveState";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ type SlackDigestResult = {
   fyi: SlackItem[];
 };
 
-export async function GET() {
+async function computeDigest() {
   try {
     // Slack is optional. With no token the section is hidden entirely rather
     // than showing an error or an empty state, so `configured: false` is a
@@ -141,4 +142,37 @@ ${messageList}`,
     console.error("Slack Digest API error:", error);
     return NextResponse.json({ error: "Failed to load Slack digest" }, { status: 500 });
   }
+}
+
+/**
+ * Mailbox digests refresh three times a day rather than on every page load.
+ * Within the current slot the stored result is reused, so opening Aperture
+ * repeatedly costs no Gmail calls and no Claude calls. `?refresh=1` — what the
+ * card's refresh control sends — always recomputes.
+ *
+ * Failures and not-configured responses are never cached, so fixing
+ * credentials takes effect immediately rather than at the next slot.
+ */
+export async function GET(request: Request) {
+  const force = new URL(request.url).searchParams.get("refresh") === "1";
+
+  if (!force) {
+    const cached = await readSlotCache<Record<string, unknown>>(CACHE_KEYS.slackDigest);
+    if (cached) return NextResponse.json(cached);
+  }
+
+  const response = await computeDigest();
+
+  if (response.ok) {
+    try {
+      const payload = await response.clone().json();
+      if (!payload?.error && payload?.configured !== false) {
+        await writeSlotCache(CACHE_KEYS.slackDigest, payload);
+      }
+    } catch {
+      /* caching is best-effort — never fail the request over it */
+    }
+  }
+
+  return response;
 }

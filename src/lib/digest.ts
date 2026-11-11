@@ -4,6 +4,9 @@ import { runMigrations } from "@/db/migrate";
 import { getTodayLondonISO } from "@/lib/week";
 import { DEFAULT_SOURCES, SEED_PROFILE, type DigestSource } from "@/lib/digestSources";
 import { fetchFeed, fetchOgImage, type FeedItem } from "@/lib/feeds";
+import { readState, writeState } from "@/lib/liveState";
+
+export { readState, writeState };
 
 // ── Tuning ──
 const WINDOW_HOURS = 36;
@@ -52,30 +55,7 @@ interface ShownEntry {
   date: string;
 }
 
-// ── live_state helpers ──
-
-export async function readState<T>(key: string, fallback: T): Promise<T> {
-  const db = getDb();
-  const res = await db.execute({
-    sql: "SELECT value FROM live_state WHERE key = ?",
-    args: [key],
-  });
-  if (res.rows.length === 0) return fallback;
-  try {
-    return JSON.parse(res.rows[0].value as string) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-export async function writeState(key: string, value: unknown): Promise<void> {
-  const db = getDb();
-  await db.execute({
-    sql: `INSERT INTO live_state (key, value, updated_at) VALUES (?, ?, datetime('now'))
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-    args: [key, JSON.stringify(value)],
-  });
-}
+// ── live_state helpers live in @/lib/liveState ──
 
 export async function getSources(): Promise<DigestSource[]> {
   const stored = await readState<DigestSource[] | null>(STATE.sources, null);
