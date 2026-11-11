@@ -4,6 +4,7 @@ import Finances from "@/components/Finances";
 import Vitals from "@/components/Vitals";
 import TodaysActivities from "@/components/TodaysActivities";
 import Digest from "@/components/Digest";
+import NewsStrip from "@/components/NewsStrip";
 import Scribblebox from "@/components/Scribblebox";
 import SkyBanner from "@/components/SkyBanner";
 import DayGate from "@/components/DayGate";
@@ -15,6 +16,11 @@ export default function Home() {
     <AppShell>
     <SkyBanner>
       <DayGate>
+        {/* ── Desktop: one slim full-width row above the grid ── */}
+        <div className="hidden md:block">
+          <NewsStrip />
+        </div>
+
         {/* ── Desktop layout (>=768px) ── */}
         <div className="hidden md:grid grid-cols-[1fr_1.5fr_1.25fr_1.25fr] gap-5 items-start anim-stagger">
           {/* Column 1 */}
@@ -53,6 +59,9 @@ export default function Home() {
               { key: "todo", label: "To-Do", content: <TodoList /> },
             ]}
           />
+
+          {/* Digest strip sits below the swipe panel on mobile, not above it */}
+          <NewsStrip />
 
           {/* Stacked components */}
           <TodaysActivities />
