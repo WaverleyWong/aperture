@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Greeting from "./Greeting";
 
 type BgStyle = { backgroundColor: string } | { background: string };
 
@@ -171,6 +172,8 @@ export default function SkyBanner({ children }: { children: React.ReactNode }) {
             })}
           </span>
         </header>
+
+        <Greeting dark={dark} />
 
         {children}
       </div>
