@@ -1,20 +1,9 @@
 import { google } from "googleapis";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { createWorkOAuth2Client, getWorkConfig } from "@/lib/google";
 
 export const dynamic = "force-dynamic";
-
-function getOAuth2Client() {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/calendar/callback`
-  );
-  oauth2Client.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-  });
-  return oauth2Client;
-}
 
 type EmailSummary = {
   sender: string;
@@ -29,7 +18,14 @@ type DigestResult = {
 
 export async function GET() {
   try {
-    const auth = getOAuth2Client();
+    // No work connection configured — an empty digest, not an error, so the
+    // UI simply shows nothing for the work account.
+    const work = getWorkConfig();
+    if (!work) {
+      return NextResponse.json({ needsReply: [], fyi: [], emailCount: 0 });
+    }
+
+    const auth = createWorkOAuth2Client(work);
     const gmail = google.gmail({ version: "v1", auth });
 
     // Build query: from yesterday start-of-day to now

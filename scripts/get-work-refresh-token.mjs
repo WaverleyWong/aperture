@@ -1,10 +1,20 @@
 #!/usr/bin/env node
 /**
  * One-time script to get a fresh Google OAuth2 refresh token for the WORK
- * (bloklondon.com) account. Opens a browser, lets you sign in, and prints the
- * refresh token to paste into .env.local as GOOGLE_REFRESH_TOKEN.
+ * account. Opens a browser, lets you sign in, and prints the refresh token to
+ * paste into .env.local as GOOGLE_REFRESH_TOKEN.
  *
- * Usage: node scripts/get-work-refresh-token.mjs
+ * Sign in as the work account you want Aperture to read — whichever account
+ * you authorise is the one the work calendar and work email digest will use.
+ *
+ * Usage:
+ *   node scripts/get-work-refresh-token.mjs
+ *     uses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+ *
+ *   node scripts/get-work-refresh-token.mjs --client=personal
+ *     uses PERSONAL_GOOGLE_CLIENT_ID / PERSONAL_GOOGLE_CLIENT_SECRET instead.
+ *     Use this when the default OAuth client belongs to an organisation you've
+ *     left, or is restricted to that organisation's domain.
  */
 
 import { google } from "googleapis";
@@ -26,12 +36,22 @@ try {
   process.exit(1);
 }
 
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const usePersonalClient = process.argv.includes("--client=personal");
+
+const CLIENT_ID = usePersonalClient
+  ? process.env.PERSONAL_GOOGLE_CLIENT_ID
+  : process.env.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = usePersonalClient
+  ? process.env.PERSONAL_GOOGLE_CLIENT_SECRET
+  : process.env.GOOGLE_CLIENT_SECRET;
+const CLIENT_LABEL = usePersonalClient
+  ? "PERSONAL_GOOGLE_CLIENT_ID"
+  : "GOOGLE_CLIENT_ID";
 const REDIRECT_URI = "http://localhost:3847/callback";
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.error("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET in .env.local");
+  const prefix = usePersonalClient ? "PERSONAL_GOOGLE" : "GOOGLE";
+  console.error(`Missing ${prefix}_CLIENT_ID or ${prefix}_CLIENT_SECRET in .env.local`);
   process.exit(1);
 }
 
@@ -84,6 +104,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(3847, () => {
   console.log("Listening on http://localhost:3847 for OAuth callback...");
-  console.log("Opening browser for Google sign-in (use your bloklondon.com account)...\n");
+  console.log(`Using OAuth client from ${CLIENT_LABEL}.`);
+  console.log("Opening browser — sign in as your WORK account.\n");
   execSync(`open "${authUrl}"`);
 });

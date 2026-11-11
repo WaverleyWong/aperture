@@ -1,21 +1,8 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { createWorkOAuth2Client, getWorkConfig, isWorkCalendar } from "@/lib/google";
 
 export const dynamic = "force-dynamic";
-
-const WORK_DOMAIN = "bloklondon.com";
-
-function getWorkOAuth2Client() {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.NEXT_PUBLIC_BASE_URL}/api/calendar/callback`
-  );
-  oauth2Client.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-  });
-  return oauth2Client;
-}
 
 function getPersonalOAuth2Client() {
   const oauth2Client = new google.auth.OAuth2(
@@ -29,11 +16,8 @@ function getPersonalOAuth2Client() {
   return oauth2Client;
 }
 
-function classifyCalendar(calendarId: string): "work" | "personal" {
-  if (calendarId.endsWith(`@${WORK_DOMAIN}`) || calendarId.endsWith(`.${WORK_DOMAIN}`)) {
-    return "work";
-  }
-  return "personal";
+function classifyCalendar(calendarId: string, workDomain: string): "work" | "personal" {
+  return isWorkCalendar(calendarId, workDomain) ? "work" : "personal";
 }
 
 type CalendarEvent = {
@@ -72,10 +56,11 @@ function formatEvent(
 }
 
 async function fetchCalendarEvents(
-  auth: ReturnType<typeof getWorkOAuth2Client>,
+  auth: ReturnType<typeof getPersonalOAuth2Client>,
   timeMin: string,
   timeMax: string,
-  sourceOverride?: "work" | "personal"
+  sourceOverride?: "work" | "personal",
+  workDomain?: string
 ): Promise<CalendarEvent[]> {
   const calendar = google.calendar({ version: "v3", auth });
 
@@ -93,7 +78,8 @@ async function fetchCalendarEvents(
           singleEvents: true,
           orderBy: "startTime",
         });
-        const source = sourceOverride || classifyCalendar(cal.id || "");
+        const source =
+          sourceOverride || classifyCalendar(cal.id || "", workDomain || "");
         return (res.data.items || []).map((event) => formatEvent(event, source));
       } catch {
         return [];
@@ -122,12 +108,24 @@ export async function GET() {
     const timeMax = `${londonDate}T23:59:59${offsetStr}`;
 
     // Fetch work and personal calendars in parallel. Each side is fault-isolated
-    // so one dead account/token doesn't take down the whole card.
+    // so one dead account/token doesn't take down the whole card. With no work
+    // connection configured, the work side is skipped entirely rather than
+    // failing — personal events still load as normal.
+    const work = getWorkConfig();
+
     const [workEvents, personalEvents] = await Promise.all([
-      fetchCalendarEvents(getWorkOAuth2Client(), timeMin, timeMax).catch((err) => {
-        console.error("Work calendar fetch failed:", err);
-        return [] as CalendarEvent[];
-      }),
+      work
+        ? fetchCalendarEvents(
+            createWorkOAuth2Client(work),
+            timeMin,
+            timeMax,
+            undefined,
+            work.domain
+          ).catch((err) => {
+            console.error("Work calendar fetch failed:", err);
+            return [] as CalendarEvent[];
+          })
+        : Promise.resolve([] as CalendarEvent[]),
       fetchCalendarEvents(getPersonalOAuth2Client(), timeMin, timeMax, "personal").catch((err) => {
         console.error("Personal calendar fetch failed:", err);
         return [] as CalendarEvent[];
