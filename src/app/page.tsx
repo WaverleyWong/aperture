@@ -4,7 +4,6 @@ import Finances from "@/components/Finances";
 import Vitals from "@/components/Vitals";
 import TodaysActivities from "@/components/TodaysActivities";
 import Digest from "@/components/Digest";
-import BlokMetrics from "@/components/BlokMetrics";
 import Scribblebox from "@/components/Scribblebox";
 import ChatAssistant from "@/components/ChatAssistant";
 import SkyBanner from "@/components/SkyBanner";
@@ -40,9 +39,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Row B: BLOK Metrics */}
-            <BlokMetrics />
-
             {/* Row C: Digest */}
             <Digest />
           </div>
@@ -62,7 +58,6 @@ export default function Home() {
           {/* Stacked components */}
           <TodaysActivities />
           <Digest />
-          <BlokMetrics />
           <Vitals />
           <Finances />
         </div>

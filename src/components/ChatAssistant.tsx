@@ -14,11 +14,10 @@ async function gatherContext(): Promise<string> {
   const t = Date.now();
 
   try {
-    const [calRes, taskRes, finRes, blokRes, digestRes, slackRes, stateRes, vitalsRes] = await Promise.allSettled([
+    const [calRes, taskRes, finRes, digestRes, slackRes, stateRes, vitalsRes] = await Promise.allSettled([
       fetch(`/api/calendar?_t=${t}`),
       fetch(`/api/notion-tasks?_t=${t}`),
       fetch(`/api/finance?_t=${t}`),
-      fetch(`/api/blok-metrics?_t=${t}`),
       fetch(`/api/personal-digest?_t=${t}`),
       fetch(`/api/slack-digest?_t=${t}`),
       fetch(`/api/state`),
@@ -92,14 +91,6 @@ async function gatherContext(): Promise<string> {
         fp.push(`Subscriptions: ${subList}`);
       }
       if (fp.length > 0) parts.push(`FINANCES: ${fp.join(". ")}`);
-    }
-
-    // BLOK Metrics
-    if (blokRes.status === "fulfilled" && blokRes.value.ok) {
-      const data = await blokRes.value.json();
-      if (data.totalSalesTY) {
-        parts.push(`BLOK METRICS: Sales MTD £${data.totalSalesTY.toLocaleString()} (LY £${data.totalSalesLY.toLocaleString()}). Trials: ${data.sc90TrialsTY} (LY ${data.sc90TrialsLY}). Ad spend: £${Math.round(data.totalAdSpend)}. CAC: £${data.blendedCAC.toFixed(2)}. As of ${data.asOfDate}.`);
-      }
     }
 
     // Personal Email Digest
