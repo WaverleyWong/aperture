@@ -195,8 +195,6 @@ export default function NewsStrip() {
     }
   }, [refreshing]);
 
-  if (loading) return null;
-
   return (
     <section className="anim-fade-in mb-5">
       <div className="flex items-baseline gap-2 mb-2 px-0.5">
@@ -225,7 +223,9 @@ export default function NewsStrip() {
 
       {error && <p className="text-[11px] text-red-400 mb-2 px-0.5">{error}</p>}
 
-      {cards.length === 0 ? (
+      {loading ? (
+        <p className="text-[11px] text-black/35 italic px-0.5">Loading…</p>
+      ) : cards.length === 0 ? (
         <p className="text-[11px] text-black/35 italic px-0.5">
           No cards yet — the daily job runs at 05:00, or press Refresh.
         </p>
