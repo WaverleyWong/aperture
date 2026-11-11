@@ -5,6 +5,9 @@
   --deep-forest: #0e402d;
   --cerulean: #007ea7;
   --black: #000000;
+  /* Muted dusty rose — sits with the forest/cerulean palette without shouting.
+     Used to tint work-account senders in the Digest. */
+  --blush: #a85c6e;
 }
 
 @theme inline {
@@ -12,6 +15,7 @@
   --color-forest: var(--deep-forest);
   --color-cerulean: var(--cerulean);
   --color-black: var(--black);
+  --color-blush: var(--blush);
   --font-sans: var(--font-inter);
 }
 

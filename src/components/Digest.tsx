@@ -145,12 +145,14 @@ function DismissableRow({
 
 // ── Row components ──
 
-function AccountBadge({ account }: { account: string }) {
-  return (
-    <span className="shrink-0 text-[9px] uppercase tracking-[0.1em] font-semibold text-forest/50 border border-forest/15 rounded px-1 py-px">
-      {account}
-    </span>
-  );
+/**
+ * The sender itself carries the account, as a tinted chip — dusty rose for
+ * work, cerulean for personal. Reads as a highlight rather than a label.
+ */
+function senderTint(account: string): string {
+  return account === WORK_LABEL
+    ? "bg-blush/12 text-blush"
+    : "bg-cerulean/10 text-cerulean";
 }
 
 function EmailRow({
@@ -164,8 +166,9 @@ function EmailRow({
     <DismissableRow id={itemKey(email.sender, email.subject)} onDismiss={onDismiss}>
       <div className="flex flex-col gap-0.5 py-1.5 pr-6">
         <div className="flex items-baseline gap-2">
-          <AccountBadge account={email.account} />
-          <span className="text-xs font-medium text-black/80 shrink-0">
+          <span
+            className={`shrink-0 text-xs font-medium rounded px-1.5 py-0.5 ${senderTint(email.account)}`}
+          >
             {email.sender}
           </span>
           <span className="text-[11px] text-black/40 truncate">
@@ -334,12 +337,12 @@ function DigestContent({
   const notDismissed = (e: LabelledEmail) =>
     !dismissed.has(itemKey(e.sender, e.subject));
 
-  // Needs-reply from both accounts first, then FYI from both.
+  // Needs-reply only, from both accounts. FYI is still categorised by the
+  // digest routes but deliberately not shown.
   const needsReply = [...p.needsReply, ...w.needsReply].filter(notDismissed);
-  const fyi = [...p.fyi, ...w.fyi].filter(notDismissed);
   const emailCount = p.count + w.count;
 
-  if (loading && needsReply.length === 0 && fyi.length === 0) {
+  if (loading && needsReply.length === 0) {
     return (
       <div className="flex items-center gap-2 py-2">
         <span className="text-xs text-black/40">
@@ -355,10 +358,10 @@ function DigestContent({
     return <p className="text-xs text-red-400 py-2">{error}</p>;
   }
 
-  if (needsReply.length === 0 && fyi.length === 0) {
+  if (needsReply.length === 0) {
     return (
       <p className="text-xs text-black/40 italic py-2">
-        No notable emails from yesterday or today.
+        Nothing needing a reply from yesterday or today.
       </p>
     );
   }
@@ -373,19 +376,6 @@ function DigestContent({
           <div className="divide-y divide-forest/[0.06]">
             {needsReply.map((email, i) => (
               <EmailRow key={`reply-${i}`} email={email} onDismiss={onDismiss} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {fyi.length > 0 && (
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.12em] text-black/30 font-medium mb-1">
-            FYI
-          </div>
-          <div className="divide-y divide-forest/[0.06]">
-            {fyi.map((email, i) => (
-              <EmailRow key={`fyi-${i}`} email={email} onDismiss={onDismiss} />
             ))}
           </div>
         </div>
