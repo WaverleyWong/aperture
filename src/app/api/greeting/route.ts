@@ -34,11 +34,19 @@ export async function GET(request: Request) {
       }
     }
 
+    // These call back into our own API over HTTP, so they have to carry the
+    // caller's session cookie — the passcode gate 401s anything without it.
+    const cookie = request.headers.get("cookie");
+    const internal: RequestInit = {
+      cache: "no-store",
+      headers: cookie ? { cookie } : {},
+    };
+
     // Gather context from APIs + database in parallel
     const [calendarRes, tasksRes, digestRes, recentLogs] = await Promise.allSettled([
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/calendar`),
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/notion-tasks`),
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/personal-digest`),
+      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/calendar`, internal),
+      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/notion-tasks`, internal),
+      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/personal-digest`, internal),
       db.execute({
         sql: "SELECT date, note, mood FROM daily_log ORDER BY date DESC LIMIT 3",
         args: [],
