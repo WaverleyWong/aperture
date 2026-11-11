@@ -5,28 +5,43 @@ import { useEffect, useState } from "react";
 /**
  * The one-line note at the top of the dashboard.
  *
- * Fetches only once DayGate has finished, so the calendar and task data the
- * greeting reasons about is already in place. A second fire of the same event
- * means a fresh DayGate review, so regenerate rather than serve the cache.
+ * Two entry points, so a missed event can't leave the header permanently blank:
+ *  - on mount, read-through only — shows today's line immediately if one has
+ *    already been generated, and never generates from pre-DayGate data
+ *  - on `daygate-complete`, generate for real, since the day's tasks and
+ *    calendar are synced by then. A second fire means a fresh review, so
+ *    regenerate instead of serving the cache.
  */
 export default function Greeting({ dark }: { dark: boolean }) {
   const [greeting, setGreeting] = useState("");
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    let hasFetched = false;
-    const fetchGreeting = () => {
-      const refresh = hasFetched ? "1" : "0";
-      hasFetched = true;
-      fetch(`/api/greeting?refresh=${refresh}`)
+    let cancelled = false;
+
+    const load = (query: string) =>
+      fetch(`/api/greeting?${query}`)
         .then((r) => r.json())
         .then((data) => {
-          if (data.greeting) setGreeting(data.greeting);
+          if (!cancelled && data.greeting) setGreeting(data.greeting);
         })
         .catch(() => {});
+
+    // Anything already generated for today, straight away.
+    load("cacheOnly=1");
+
+    let hasGenerated = false;
+    const onDayGateComplete = () => {
+      const refresh = hasGenerated ? "1" : "0";
+      hasGenerated = true;
+      load(`refresh=${refresh}`);
     };
-    window.addEventListener("daygate-complete", fetchGreeting);
-    return () => window.removeEventListener("daygate-complete", fetchGreeting);
+
+    window.addEventListener("daygate-complete", onDayGateComplete);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("daygate-complete", onDayGateComplete);
+    };
   }, []);
 
   if (!greeting) return null;

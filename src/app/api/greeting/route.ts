@@ -18,6 +18,10 @@ export async function GET(request: Request) {
     const today = getTodayLondonISO();
     const { searchParams } = new URL(request.url);
     const skipCache = searchParams.get("refresh") === "1";
+    // Read-through only: serve today's greeting if one exists, but never
+    // generate. Used on page load, where the day's task and calendar data may
+    // not have been synced by DayGate yet.
+    const cacheOnly = searchParams.get("cacheOnly") === "1";
 
     // One generation per day unless a refresh is asked for.
     if (!skipCache) {
@@ -36,6 +40,8 @@ export async function GET(request: Request) {
         }
       }
     }
+
+    if (cacheOnly) return NextResponse.json({ greeting: "" });
 
     // The three API calls below come back into our own routes over HTTP, so
     // they have to carry the caller's session cookie — the passcode gate 401s
