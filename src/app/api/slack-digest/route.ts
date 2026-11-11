@@ -16,12 +16,17 @@ type SlackDigestResult = {
 
 export async function GET() {
   try {
+    // Slack is optional. With no token the section is hidden entirely rather
+    // than showing an error or an empty state, so `configured: false` is a
+    // normal 200 response — set SLACK_MCP_TOKEN to turn it back on.
     const token = process.env.SLACK_MCP_TOKEN;
     if (!token) {
-      return NextResponse.json(
-        { error: "SLACK_MCP_TOKEN not configured" },
-        { status: 500 }
-      );
+      return NextResponse.json({
+        configured: false,
+        needsResponse: [],
+        fyi: [],
+        messageCount: 0,
+      });
     }
 
     const slack = new WebClient(token);

@@ -24,9 +24,16 @@ type SlackDigestData = {
   needsResponse: SlackItem[];
   fyi: SlackItem[];
   messageCount: number;
+  /** False when SLACK_MCP_TOKEN isn't set — the section is hidden entirely. */
+  configured?: boolean;
 };
 
-type Tab = "personal" | "work";
+/** Display label for the work account. Cosmetic only — nothing keys off it. */
+const WORK_LABEL = "HOWL";
+const PERSONAL_LABEL = "Personal";
+
+/** An email plus which inbox it came from, for the merged list. */
+type LabelledEmail = EmailSummary & { account: string };
 
 const DISMISSED_KEY = "digest-dismissed";
 
@@ -138,17 +145,26 @@ function DismissableRow({
 
 // ── Row components ──
 
+function AccountBadge({ account }: { account: string }) {
+  return (
+    <span className="shrink-0 text-[9px] uppercase tracking-[0.1em] font-semibold text-forest/50 border border-forest/15 rounded px-1 py-px">
+      {account}
+    </span>
+  );
+}
+
 function EmailRow({
   email,
   onDismiss,
 }: {
-  email: EmailSummary;
+  email: LabelledEmail;
   onDismiss: (id: string) => void;
 }) {
   return (
     <DismissableRow id={itemKey(email.sender, email.subject)} onDismiss={onDismiss}>
       <div className="flex flex-col gap-0.5 py-1.5 pr-6">
         <div className="flex items-baseline gap-2">
+          <AccountBadge account={email.account} />
           <span className="text-xs font-medium text-black/80 shrink-0">
             {email.sender}
           </span>
@@ -284,47 +300,57 @@ function SlackSection({
   );
 }
 
+/** Tags each email with its account so both inboxes can share one list. */
+function label(data: DigestData | null, account: string) {
+  if (!data) return { needsReply: [], fyi: [], count: 0 };
+  return {
+    needsReply: data.needsReply.map((e) => ({ ...e, account })),
+    fyi: data.fyi.map((e) => ({ ...e, account })),
+    count: data.emailCount || 0,
+  };
+}
+
 function DigestContent({
-  data,
+  personal,
+  work,
   loading,
   error,
   dismissed,
   onDismiss,
 }: {
-  data: DigestData | null;
+  personal: DigestData | null;
+  work: DigestData | null;
   loading: boolean;
   error: string | null;
   dismissed: Set<string>;
   onDismiss: (id: string) => void;
 }) {
-  if (loading) {
+  const p = label(personal, PERSONAL_LABEL);
+  const w = label(work, WORK_LABEL);
+
+  const notDismissed = (e: LabelledEmail) =>
+    !dismissed.has(itemKey(e.sender, e.subject));
+
+  // Needs-reply from both accounts first, then FYI from both.
+  const needsReply = [...p.needsReply, ...w.needsReply].filter(notDismissed);
+  const fyi = [...p.fyi, ...w.fyi].filter(notDismissed);
+  const emailCount = p.count + w.count;
+
+  if (loading && needsReply.length === 0 && fyi.length === 0) {
     return (
       <div className="flex items-center gap-2 py-2">
         <span className="text-xs text-black/40">
-          Scanning inbox and generating summary…
+          Scanning inboxes and generating summary…
         </span>
       </div>
     );
   }
 
-  if (error) {
+  // Only surface an error when there's nothing at all to show — one failing
+  // account shouldn't hide the other's email.
+  if (error && !personal && !work) {
     return <p className="text-xs text-red-400 py-2">{error}</p>;
   }
-
-  if (!data) {
-    return (
-      <p className="text-xs text-black/40 italic py-2">
-        No notable emails from yesterday or today.
-      </p>
-    );
-  }
-
-  const needsReply = data.needsReply.filter(
-    (e) => !dismissed.has(itemKey(e.sender, e.subject))
-  );
-  const fyi = data.fyi.filter(
-    (e) => !dismissed.has(itemKey(e.sender, e.subject))
-  );
 
   if (needsReply.length === 0 && fyi.length === 0) {
     return (
@@ -362,9 +388,11 @@ function DigestContent({
         </div>
       )}
 
-      <div className="text-[10px] text-black/25 text-right">
-        Based on {data.emailCount} most recent emails
-      </div>
+      {emailCount > 0 && (
+        <div className="text-[10px] text-black/25 text-right">
+          Based on {emailCount} most recent emails
+        </div>
+      )}
     </div>
   );
 }
@@ -372,7 +400,6 @@ function DigestContent({
 // ── Main component ──
 
 export default function Digest() {
-  const [activeTab, setActiveTab] = useState<Tab>("personal");
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [dismissedLoaded, setDismissedLoaded] = useState(false);
 
@@ -485,26 +512,24 @@ export default function Digest() {
     }
   }, []);
 
-  // Fetch personal on mount (default tab)
+  // One combined list, so both inboxes and Slack load together on mount.
   useEffect(() => {
     if (!personalFetched) fetchPersonal();
-  }, [personalFetched, fetchPersonal]);
-
-  // Lazy-fetch work tab + slack on first switch
-  useEffect(() => {
-    if (activeTab === "work") {
-      if (!workFetched) fetchWork();
-      if (!slackFetched) fetchSlack();
-    }
-  }, [activeTab, workFetched, fetchWork, slackFetched, fetchSlack]);
+    if (!workFetched) fetchWork();
+    if (!slackFetched) fetchSlack();
+  }, [personalFetched, fetchPersonal, workFetched, fetchWork, slackFetched, fetchSlack]);
 
   const handleRefresh = useCallback(async () => {
-    if (activeTab === "personal") {
-      await fetchPersonal();
-    } else {
-      await Promise.all([fetchWork(), fetchSlack()]);
-    }
-  }, [activeTab, fetchPersonal, fetchWork, fetchSlack]);
+    await Promise.all([fetchPersonal(), fetchWork(), fetchSlack()]);
+  }, [fetchPersonal, fetchWork, fetchSlack]);
+
+  // Hidden entirely until SLACK_MCP_TOKEN is set — the route reports that as
+  // `configured: false` rather than an error, so there's no empty state. Stays
+  // hidden while loading too, so an unconfigured Slack never flashes a
+  // "Scanning…" line before disappearing. A real failure still shows, so a
+  // configured-but-broken Slack isn't silently swallowed.
+  const showSlack =
+    (slackData != null && slackData.configured !== false) || slackError != null;
 
   return (
     <ComponentCard
@@ -512,86 +537,39 @@ export default function Digest() {
       className="col-span-2"
       onRefresh={handleRefresh}
     >
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 -mt-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab("personal")}
-          className={`px-3 py-1 rounded-full text-[11px] font-medium tracking-wide transition-all ${
-            activeTab === "personal"
-              ? "bg-forest/10 text-forest"
-              : "text-black/30 hover:text-black/50"
-          }`}
-        >
-          Personal
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("work")}
-          className={`px-3 py-1 rounded-full text-[11px] font-medium tracking-wide transition-all ${
-            activeTab === "work"
-              ? "bg-forest/10 text-forest"
-              : "text-black/30 hover:text-black/50"
-          }`}
-        >
-          Work
-        </button>
+      <div className="anim-fade flex flex-col">
+        {/* Email — both accounts in one list, needs-reply first */}
+        <DigestContent
+          personal={personalData}
+          work={workData}
+          loading={personalLoading || workLoading}
+          error={personalError || workError}
+          dismissed={dismissed}
+          onDismiss={handleDismiss}
+        />
+
+        {/* Slack — only once a token is configured */}
+        {showSlack && (
+          <>
+            <div className="border-t border-forest/[0.08] my-4" />
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <SlackIcon />
+                <span className="text-[11px] font-semibold text-black/50 uppercase tracking-[0.08em]">
+                  Slack
+                </span>
+              </div>
+              <SlackSection
+                data={slackData}
+                loading={slackLoading}
+                error={slackError}
+                dismissed={dismissed}
+                onDismiss={handleDismiss}
+              />
+            </div>
+          </>
+        )}
       </div>
-
-      {/* Tab content */}
-      {activeTab === "personal" ? (
-        <div key="personal" className="anim-fade">
-          <DigestContent
-            data={personalData}
-            loading={personalLoading}
-            error={personalError}
-            dismissed={dismissed}
-            onDismiss={handleDismiss}
-          />
-        </div>
-      ) : (
-        <div key="work" className="anim-fade flex flex-col">
-          {/* Slack section */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <SlackIcon />
-              <span className="text-[11px] font-semibold text-black/50 uppercase tracking-[0.08em]">
-                Slack
-              </span>
-            </div>
-            <SlackSection
-              data={slackData}
-              loading={slackLoading}
-              error={slackError}
-              dismissed={dismissed}
-              onDismiss={handleDismiss}
-            />
-          </div>
-
-          {/* Divider */}
-          <div className="border-t border-forest/[0.08] my-4" />
-
-          {/* Email section */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-                <path d="M2 7l10 7 10-7" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-              </svg>
-              <span className="text-[11px] font-semibold text-black/50 uppercase tracking-[0.08em]">
-                Email
-              </span>
-            </div>
-            <DigestContent
-              data={workData}
-              loading={workLoading}
-              error={workError}
-              dismissed={dismissed}
-              onDismiss={handleDismiss}
-            />
-          </div>
-        </div>
-      )}
     </ComponentCard>
   );
 }
