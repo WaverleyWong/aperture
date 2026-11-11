@@ -5,7 +5,6 @@ import Vitals from "@/components/Vitals";
 import TodaysActivities from "@/components/TodaysActivities";
 import Digest from "@/components/Digest";
 import Scribblebox from "@/components/Scribblebox";
-import ChatAssistant from "@/components/ChatAssistant";
 import SkyBanner from "@/components/SkyBanner";
 import DayGate from "@/components/DayGate";
 import MobileSwipePanel from "@/components/MobileSwipePanel";
@@ -63,7 +62,6 @@ export default function Home() {
         </div>
 
         <Scribblebox />
-        <ChatAssistant />
       </DayGate>
     </SkyBanner>
     </AppShell>
