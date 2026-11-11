@@ -53,6 +53,30 @@ export async function runMigrations() {
     "CREATE INDEX IF NOT EXISTS week_log_entry_date ON week_log (entry_date)"
   );
 
+  // Reactions to the daily external digest cards. Additive — nothing else in
+  // the schema changes. 'reaction' is 'more' | 'less' | 'open'; ignoring a
+  // card writes nothing at all.
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS digest_reactions (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_url    TEXT NOT NULL,
+      headline    TEXT NOT NULL,
+      source      TEXT NOT NULL,
+      topic       TEXT,
+      reaction    TEXT NOT NULL,
+      entry_date  TEXT NOT NULL,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS digest_reactions_date ON digest_reactions (entry_date)"
+  );
+
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS digest_reactions_source ON digest_reactions (source)"
+  );
+
   // Add columns if upgrading from older schema
   const columns = await db.execute("PRAGMA table_info(daily_log)");
   const colNames = new Set(columns.rows.map((c) => c.name as string));

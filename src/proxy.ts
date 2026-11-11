@@ -26,6 +26,11 @@ const PUBLIC_PATHS = new Set([
   "/sw.js",
   "/doodle.png",
   "/favicon.ico",
+  // Vercel cron sends no cookie, so this one path can't use the passcode. It
+  // is NOT unauthenticated: the route requires `Authorization: Bearer
+  // $CRON_SECRET` and refuses every request when CRON_SECRET is unset. The
+  // gate is unchanged for everything else.
+  "/api/digest/cron",
 ]);
 
 /** Path prefixes that stay reachable without a session. */
