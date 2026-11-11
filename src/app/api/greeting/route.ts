@@ -219,14 +219,24 @@ Respond with only the line itself — no preamble, no quotation marks.`,
     // normal 200 with stop_reason "refusal" and empty content.
     if (response.stop_reason === "refusal") {
       console.error("Greeting declined by safety classifier.");
-      return NextResponse.json({ greeting: "" });
+      return NextResponse.json({
+        greeting: "",
+        _diag: "declined by safety classifier",
+      });
     }
 
     const textBlock = response.content.find((b) => b.type === "text");
     const greeting =
       textBlock && textBlock.type === "text" ? textBlock.text.trim() : "";
 
-    if (!greeting) return NextResponse.json({ greeting: "" });
+    if (!greeting) {
+      return NextResponse.json({
+        greeting: "",
+        _diag: `no text block (stop_reason: ${response.stop_reason}, blocks: ${response.content
+          .map((b) => b.type)
+          .join(",")})`,
+      });
+    }
 
     // Overwrites the existing live_state row this route has always used.
     await db.execute({
@@ -237,7 +247,13 @@ Respond with only the line itself — no preamble, no quotation marks.`,
 
     return NextResponse.json({ greeting });
   } catch (error) {
+    // The UI only ever reads `greeting`, so a failure still renders nothing.
+    // `_diag` exists so the cause is visible from the endpoint itself instead
+    // of requiring Vercel logs — temporary, remove once this is settled.
     console.error("Greeting API error:", error);
-    return NextResponse.json({ greeting: "" });
+    return NextResponse.json({
+      greeting: "",
+      _diag: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    });
   }
 }
