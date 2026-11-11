@@ -22,7 +22,7 @@ export async function GET() {
     // UI simply shows nothing for the work account.
     const work = getWorkConfig();
     if (!work) {
-      return NextResponse.json({ needsReply: [], fyi: [], emailCount: 0 });
+      return NextResponse.json({ configured: false, needsReply: [], fyi: [], emailCount: 0 });
     }
 
     const auth = createWorkOAuth2Client(work);
@@ -46,7 +46,7 @@ export async function GET() {
     const messageIds = (listRes.data.messages || []).map((m) => m.id!);
 
     if (messageIds.length === 0) {
-      return NextResponse.json({ needsReply: [], fyi: [], emailCount: 0 });
+      return NextResponse.json({ configured: true, needsReply: [], fyi: [], emailCount: 0 });
     }
 
     // Fetch message details in parallel
@@ -117,6 +117,9 @@ ${emailList}`,
     });
   } catch (error: unknown) {
     console.error("Work Digest API error:", error);
-    return NextResponse.json({ error: "Failed to load work digest" }, { status: 500 });
+    return NextResponse.json(
+      { configured: true, error: "Failed to load work digest" },
+      { status: 500 }
+    );
   }
 }

@@ -314,17 +314,20 @@ function DigestContent({
   personal,
   work,
   loading,
-  error,
+  personalError,
+  workError,
   dismissed,
   onDismiss,
 }: {
   personal: DigestData | null;
   work: DigestData | null;
   loading: boolean;
-  error: string | null;
+  personalError: string | null;
+  workError: string | null;
   dismissed: Set<string>;
   onDismiss: (id: string) => void;
 }) {
+  const error = personalError || workError;
   const p = label(personal, PERSONAL_LABEL);
   const w = label(work, WORK_LABEL);
 
@@ -386,6 +389,19 @@ function DigestContent({
             ))}
           </div>
         </div>
+      )}
+
+      {/* An account that is configured but failing says so quietly, rather
+          than looking identical to one that isn't set up at all. */}
+      {personalError && (
+        <p className="text-[10px] text-black/30 italic">
+          {PERSONAL_LABEL} email unavailable right now.
+        </p>
+      )}
+      {workError && (
+        <p className="text-[10px] text-black/30 italic">
+          {WORK_LABEL} email unavailable right now — check the work connection.
+        </p>
       )}
 
       {emailCount > 0 && (
@@ -543,7 +559,8 @@ export default function Digest() {
           personal={personalData}
           work={workData}
           loading={personalLoading || workLoading}
-          error={personalError || workError}
+          personalError={personalError}
+          workError={workError}
           dismissed={dismissed}
           onDismiss={handleDismiss}
         />
